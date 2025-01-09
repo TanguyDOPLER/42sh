@@ -1,21 +1,22 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include "token.h"
 #include <stdlib.h>
+
+#include "token.h"
 
 struct lexer
 {
-    const char* input; //L'input de 'exe'
-    size_t pos; //positio=n dans la string input
-    struct token* token_list;
+    const char *input; // L'input de 'exe'
+    size_t pos; // positio=n dans la string input
+    struct token curr_token;
 };
 
-struct lexer* lexer_init(const char *input);
-//init a new lexer
+struct lexer *lexer_init(const char *input);
+// init a new lexer
 
-void lexer_free(struct lexer* lexer);
-//free a lexer
+void lexer_free(struct lexer *lexer);
+// free a lexer
 
 struct token lexer_next_token(struct lexer *lexer);
 
