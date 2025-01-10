@@ -136,10 +136,11 @@ struct token lexer_next_token(struct lexer *lexer)
     while (curr_char == ' ') // retire les espaces parasites
         curr_char = lexer->input[++lexer->pos];
     while (curr_char != '\0'
-           && (flag || (curr_char != ' ' && curr_char != ';')))
+           && (flag
+               || (curr_char != ' ' && curr_char != ';' && curr_char != '\n')))
     {
         if (curr_char == '\'' || curr_char == '#')
-        //# se ferme a la fin d'un \n
+        // # se ferme a la fin d'un \n
         //' doit se refermer sinon error
         {
             if (flag == '\'')
@@ -150,6 +151,7 @@ struct token lexer_next_token(struct lexer *lexer)
                 flag = curr_char;
         }
         if (flag == '#' && curr_char == '\n') // Stoper le com au 1er \n
+        // peut merder si comm
         {
             break; // remettre le flag a 0 pour le prochain token
         }
@@ -162,10 +164,12 @@ struct token lexer_next_token(struct lexer *lexer)
             buffer = realloc(buffer, size);
         }
     }
-    if (i == 0 && curr_char == ';') // Ajout du ; pour le tokenizer en plus
+    if (i == 0
+        && (curr_char == ';'
+            || curr_char == '\n')) // Ajout du ; pour le tokenizer en plus
     // de l'utiliser en delimiteur
     {
-        buffer[i++] = ';';
+        buffer[i++] = curr_char;
         curr_char = lexer->input[++lexer->pos];
     }
     buffer[i] = '\0'; // Fin de string

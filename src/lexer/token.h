@@ -1,3 +1,6 @@
+#ifndef TOKEN_H
+#define TOKEN_H
+
 #include <stdlib.h>
 
 enum token_use
@@ -30,3 +33,5 @@ struct token
     enum token_type type; // type of the token
     char *value; // if no value -> set to null
 };
+
+#endif /* ! TOKEN_H */

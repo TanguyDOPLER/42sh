@@ -7,6 +7,6 @@ liblexer_a_SOURCES =  \
 
 liblexer_a_CPPFLAGS = -I$(top_srcdir)/src
 
-liblexer_a_CFLAGS = -g -fsanitize=address -std=c99 -Werror -Wall -Wextra -Wvla -pedantic
+liblexer_a_CFLAGS =-O0 -g -fsanitize=address -std=c99 -Werror -Wall -Wextra -Wvla -pedantic
 
 noinst_LIBRARIES = liblexer.a

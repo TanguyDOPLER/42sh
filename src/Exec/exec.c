@@ -73,17 +73,21 @@ int detect_builtin(int argc, char **argv) // argv null terminated
     return -3; // on a pas détecter de builtin, donc on continu sur execvp
 }
 
+static int count_arguments(struct ast *ast)
+{
+    int count = 1; // Initialisé à 1 pour inclure le NULL final
+    while (ast) // on compte le nb d'arguments y compris la commande. Cf. man
+                // page execvp(3)
+    {
+        count++;
+        ast = ast->left;
+    }
+    return count;
+}
+
 int exec_simple_command(struct ast *ast)
 {
-    int number_argument = 1; // initialisation à 1 car la liste de char * doit
-                             // finir par NULL, donc au moins 1;
-    struct ast *temp = ast;
-    while (temp) // on compte le nb d'arguments y compris la commande. Cf. man
-                 // page execvp(3)
-    {
-        number_argument++;
-        temp = temp->left; // arguments suivants
-    }
+    int number_argument = count_arguments(ast);
     char **argv = calloc(
         number_argument,
         sizeof(char *)); // initialisation du tableau de char * pour execvp
@@ -133,7 +137,7 @@ int exec_simple_command(struct ast *ast)
             fprintf(stderr,
                     "failed on exec simple command. returned result from child "
                     "process is 127\n");
-            return 2;
+            return 127;
         }
         // printf("%s exited with %d!\n", argv[0], exit_stat); //ca servira
         // surement pour debug
