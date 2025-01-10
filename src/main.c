@@ -45,6 +45,9 @@ int is_regular_file(const char *input) // check si c'est un ficher valide
 
 void exec_42sh(char *buff, int flag) // execution en cas de non stdin
 {
+    if (strlen(buff) > 0 && buff[strlen(buff) - 1] == '\n')//retrait dernier
+        //retour a la ligne
+        buff[strlen(buff) - 1] = '\0';
     struct lexer *lexer = lexer_init(buff);
     enum parser_status status = PARSER_OK;
     struct ast *ast = parse(&status, lexer);
@@ -69,19 +72,19 @@ int main(int argc, char *argv[])
     if (buff) // Si buffer remplie alors pas de stdin alors exec_42
     {
         exec_42sh(buff, is_regular_file(argv[1]));
-        return 1;
+        return 0;
     }
-    size_t size = 1024;
-    buff = malloc(1024);
+    size_t size = 0;
+    buff = NULL;
     ssize_t ending = 0; // check la fin
-    while (ending != -1)
+    while ((ending = getline(&buff, &size, stdin)) != -1)
     {
         // printf("42sh$ "); c'est pour faire beau
-        ending = getline(&buff, &size, stdin); // 1024 par 1024
-        struct lexer *lexer = lexer_init(buff);
-        if (strlen(buff) > 0) // Check retirer le \n par \0 pour eviter un saut
-            // de ligne
+        //printf("%s\n",buff);// print le buffer
+        if (strlen(buff) > 0 && buff[strlen(buff) - 1] == '\n')//retrait \n 
+            //final
             buff[strlen(buff) - 1] = '\0';
+        struct lexer *lexer = lexer_init(buff);
         enum parser_status status = PARSER_OK;
         struct ast *ast = parse(&status, lexer);
         exec_ast(ast);
