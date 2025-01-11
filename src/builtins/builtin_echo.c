@@ -45,24 +45,30 @@ int builtin_echo(int argc, char *argv[])
 
     while (i < argc && argv[i][0] == '-')
     {
-        if (strcmp(argv[i], "-n")
-            == 0) // option -n : empêche d'écrire un saut de ligne à la fin
+        char *s = argv[i];
+        int j = 1;
+        while (s[j] != '\0')
         {
-            print_newline = 0;
-        }
-        else if (strcmp(argv[i], "-e")
-                 == 0) // option -e : interprète les \n, \t et double backslash
-        {
-            interpret_escapes = 1;
-        }
-        else if (strcmp(argv[i], "-E") == 0) // option -E : n'interprète pas les
-                                             // \n, \t et double backslash
-        {
-            interpret_escapes = 0;
-        }
-        else
-        {
-            break; // option inconnue
+            if (s[j] == 'n') // option -n : empêche d'écrire un saut de ligne à
+                             // la fin
+            {
+                print_newline = 0;
+            }
+            else if (s[j] == 'e') // option -e : interprète les
+                                  // \n, \t et double backslash
+            {
+                interpret_escapes = 1;
+            }
+            else if (s[j] == 'E') // option -E : n'interprète pas les
+                                  // \n, \t et double backslash
+            {
+                interpret_escapes = 0;
+            }
+            else
+            {
+                break; // option inconnue
+            }
+            j++;
         }
         i++;
     }

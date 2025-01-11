@@ -5,126 +5,162 @@
 #include <string.h>
 
 /**
- * input=   list '\n'
- *      | list EOF
- *      | '\n'
- *      | EOF;
+ * element = WORD ;
  */
-struct ast *parse(enum parser_status *status, struct lexer *lexer)
+static struct ast *element(enum parser_status *status, struct lexer *lexer)
 {
-    struct token t = lexer_pop(lexer);
-    if (t.type == TOKEN_EOL || t.type == TOKEN_EOF)
+    if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
-
-    struct ast *res = list(status, lexer);
-    if (*status != PARSER_OK)
+    struct token t = lexer_peek(lexer); // touche pas au peek ici connard
+    if (t.type != TOKEN_WORDS)
     {
-        ast_free(res);
-        return NULL;
-    }
-    t = lexer_peek(lexer);
-    if (t.type != TOKEN_EOL && t.type != TOKEN_EOF)
-    {
-        fprintf(stderr, "parse: Error token: expected EOF or EOL, got %d\n",
+        fprintf(stderr, "element: Error token: expected WORD, got %d\n",
                 t.type);
         *status = PARSER_UNEXPECTED_TOKEN;
-        ast_free(res);
+        // free(t.value);
         return NULL;
     }
-    return res;
+    struct ast *elt = ast_new(AST_ARGUMENTS);
+    elt->value = t.value; // strdup(t.value); // copie la valeur du token dans
+                          // celle du nouveau noeud (ast->value = t.value)
+    return elt;
 }
 
 /**
- * list = and_or { ';' and_or } [ ';' ] ;
+ * compound_list = {'\n'} and_or { ( ';' | '\n' ) {'\n'} and_or } [';'] {'\n'} ;
  */
-struct ast *list(enum parser_status *status, struct lexer *lexer)
+static struct ast *compound_list(enum parser_status *status,
+                                 struct lexer *lexer)
 {
-    // fonction qui parse une liste. fonctionnement AST : fils gauche frère
-    // droit
     if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
-    struct ast *ast = ast_new(AST_LIST); // initialisation struct ast
-    ast->left =
-        and_or(status, lexer); // on aura forcement un "and_or" au début. Donc
-                               // c'est le fils donc on le met à gauche.
-    if (ast->left == NULL) // Si on a pas de and_or c'est que le parser a
-                           // planté. Il faudra ptet mettre à jour status ici
-        return NULL;
-    struct ast *actual = ast; // variable temporaire pour parcourir les fils
-                              // gauche, soit les frère
-    struct token token = lexer_peek(
-        lexer); // variable contenant le token qu'on étudie actuellement
-    while (
-        token.type
-        == TOKEN_SEMI_COLON) // boucle -> check grammar : { ';' and_or } [ ';' ]
+    struct token t = lexer_peek(lexer);
+    while (t.type == TOKEN_EOL)
     {
-        if ((token = lexer_pop(lexer)).type
+        t = lexer_pop(lexer);
+    }
+    struct ast *compound = ast_new(AST_LIST);
+    struct ast *n = compound;
+    struct ast *child = and_or(status, lexer);
+    if (*status != PARSER_OK)
+    {
+        *status = PARSER_UNEXPECTED_TOKEN;
+        ast_free(compound);
+        free(t.value); // on garde ca au cas où c'est un word
+        return NULL;
+    }
+    compound->left = child;
+    t = lexer_peek(lexer);
+    while (t.type == TOKEN_SEMI_COLON || t.type == TOKEN_EOL)
+    {
+        t = lexer_pop(lexer);
+        while (t.type == TOKEN_EOL)
+        {
+            t = lexer_pop(lexer);
+        }
+
+        if ((t = lexer_peek(lexer)).type
             == TOKEN_WORDS) // cas où on a un and_or et non juste un point
                             // virgule
         {
-            actual->right = ast_new(AST_LIST); // on rajoute un frère
-            actual = actual->right; // on actualise la variable actual
-            actual->left =
-                and_or(status,
-                       lexer); // on met la valeur du and_or dans le fils gauche
+            child = and_or(status, lexer);
+            if (*status != PARSER_OK)
+            {
+                ast_free(compound);
+                return NULL;
+            }
+            n->right = ast_new(AST_LIST);
+            n = n->right;
+            n->left = child;
         }
-        token = lexer_peek(lexer);
+        t = lexer_peek(lexer);
     }
-    return ast; // retour de l'ast complet
+    if (t.type == TOKEN_SEMI_COLON)
+    {
+        lexer_pop(lexer);
+    }
+    t = lexer_peek(lexer);
+    while (t.type == TOKEN_EOL)
+    {
+        t = lexer_pop(lexer);
+    }
+    return compound;
 }
 
 /**
- * and_or = pipeline ;
+ * simple_command = WORD { element } ;
  */
-struct ast *and_or(enum parser_status *status, struct lexer *lexer)
+static struct ast *simple_command(enum parser_status *status,
+                                  struct lexer *lexer)
 {
-    return pipeline(status, lexer);
+    if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
+        return NULL;
+    struct token t = lexer_peek(lexer); // test si on est sur un word
+    if (t.type != TOKEN_WORDS)
+    {
+        fprintf(stderr, "simple_command: Error token: expected WORD, got %d\n",
+                t.type);
+        *status = PARSER_UNEXPECTED_TOKEN;
+        return NULL;
+    }
+    struct ast *command = ast_new(AST_SIMPLE_COMMAND); // init ast global
+    command->value = t.value;
+    struct ast *node = command; // struct ast temp
+    t = lexer_pop(
+        lexer); // on passe au token suivant prcq on veut plus le premier
+    while (t.type == TOKEN_WORDS) // boucle pour parcourir les arguments
+    {
+        struct ast *child = element(
+            status, lexer); // on pop la dedans, donc on obtiens la suite
+        if (*status != PARSER_OK)
+        {
+            ast_free(command);
+            return NULL;
+        }
+        node->left = child; // on met à jour la structure ast
+        node = node->left;
+        t = lexer_pop(lexer); // on test si on est toujours sur un word
+    }
+    return command;
 }
 
-/**
- *  pipeline = command ;
+/*
+ * else_clause =
+ *    'else' compound_list
+ *  | 'elif' compound_list 'then' compound_list [else_clause];
  */
-struct ast *pipeline(enum parser_status *status, struct lexer *lexer)
-{
-    return command(status, lexer);
-}
 
-/**
- command =
-    simple_command
-    shell_command;
- */
-struct ast *command(enum parser_status *status, struct lexer *lexer)
+static struct ast *else_clause(enum parser_status *status, struct lexer *lexer)
 {
     if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
     struct token token = lexer_peek(lexer); // on test si on est sur une simple
                                             // commande ou une shell commande
-    if (token.type == TOKEN_IF) // cas shell command
+    lexer_pop(lexer); // on dégage le else ou elif
+    if (token.type == TOKEN_ELSE) // cas simple else
     {
-        return shell_command(status, lexer);
+        return compound_list(status, lexer);
     }
-    else // cas simple command
+    if (token.type == TOKEN_ELIF) // cas else + if = elif
     {
-        return simple_command(status, lexer);
+        struct ast *ast =
+            ast_new(AST_SHELL_COMMAND); // faire un ast shell commande ici et
+                                        // faire un if sans verif des mots clef
+        ast->condition = compound_list(status, lexer); // set up la condition
+        lexer_pop(lexer); // free le token "then" ;
+        ast->left = compound_list(status, lexer);
+        ast->right = else_clause(status, lexer);
+        return ast;
     }
-}
-
-/*
- * (* for the time being, it is limited to a single rule_if *)
- *   shell_command = rule_if ;
- */
-
-struct ast *shell_command(enum parser_status *status, struct lexer *lexer)
-{
-    return rule_if(status, lexer);
+    *status = PARSER_UNEXPECTED_TOKEN; // cas où token != elif et else
+    return NULL;
 }
 
 /*
  * rule_if = 'if' compound_list 'then' compound_list [else_clause] 'fi' ;
  */
 
-struct ast *rule_if(enum parser_status *status, struct lexer *lexer)
+static struct ast *rule_if(enum parser_status *status, struct lexer *lexer)
 {
     if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
@@ -182,151 +218,118 @@ struct ast *rule_if(enum parser_status *status, struct lexer *lexer)
 }
 
 /*
- * else_clause =
- *    'else' compound_list
- *  | 'elif' compound_list 'then' compound_list [else_clause];
+ * (* for the time being, it is limited to a single rule_if *)
+ *   shell_command = rule_if ;
  */
 
-struct ast *else_clause(enum parser_status *status, struct lexer *lexer)
+static struct ast *shell_command(enum parser_status *status,
+                                 struct lexer *lexer)
+{
+    return rule_if(status, lexer);
+}
+
+/**
+ command =
+    simple_command
+    shell_command;
+ */
+static struct ast *command(enum parser_status *status, struct lexer *lexer)
 {
     if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
     struct token token = lexer_peek(lexer); // on test si on est sur une simple
                                             // commande ou une shell commande
-    lexer_pop(lexer); // on dégage le else ou elif
-    if (token.type == TOKEN_ELSE) // cas simple else
+    if (token.type == TOKEN_IF) // cas shell command
     {
-        return compound_list(status, lexer);
+        return shell_command(status, lexer);
     }
-    if (token.type == TOKEN_ELIF) // cas else + if = elif
+    else // cas simple command
     {
-        struct ast *ast =
-            ast_new(AST_SHELL_COMMAND); // faire un ast shell commande ici et
-                                        // faire un if sans verif des mots clef
-        ast->condition = compound_list(status, lexer); // set up la condition
-        lexer_pop(lexer); // free le token "then" ;
-        ast->left = compound_list(status, lexer);
-        ast->right = else_clause(status, lexer);
-        return ast;
+        return simple_command(status, lexer);
     }
-    *status = PARSER_UNEXPECTED_TOKEN; // cas où token != elif et else
-    return NULL;
 }
 
 /**
- * simple_command = WORD { element } ;
+ *  pipeline = command ;
  */
-struct ast *simple_command(enum parser_status *status, struct lexer *lexer)
+static struct ast *pipeline(enum parser_status *status, struct lexer *lexer)
 {
-    if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
-        return NULL;
-    struct token t = lexer_peek(lexer); // test si on est sur un word
-    if (t.type != TOKEN_WORDS)
-    {
-        fprintf(stderr, "simple_command: Error token: expected WORD, got %d\n",
-                t.type);
-        *status = PARSER_UNEXPECTED_TOKEN;
-        return NULL;
-    }
-    struct ast *command = ast_new(AST_SIMPLE_COMMAND); // init ast global
-    command->value = t.value;
-    struct ast *node = command; // struct ast temp
-    t = lexer_pop(
-        lexer); // on passe au token suivant prcq on veut plus le premier
-    while (t.type == TOKEN_WORDS) // boucle pour parcourir les arguments
-    {
-        struct ast *child = element(
-            status, lexer); // on pop la dedans, donc on obtiens la suite
-        if (*status != PARSER_OK)
-        {
-            ast_free(command);
-            return NULL;
-        }
-        node->left = child; // on met à jour la structure ast
-        node = node->left;
-        t = lexer_pop(lexer); // on test si on est toujours sur un word
-    }
-    return command;
+    return command(status, lexer);
 }
 
 /**
- * element = WORD ;
+ * and_or = pipeline ;
  */
-struct ast *element(enum parser_status *status, struct lexer *lexer)
+struct ast *and_or(enum parser_status *status, struct lexer *lexer)
 {
-    if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
-        return NULL;
-    struct token t = lexer_peek(lexer); // touche pas au peek ici connard
-    if (t.type != TOKEN_WORDS)
-    {
-        fprintf(stderr, "element: Error token: expected WORD, got %d\n",
-                t.type);
-        *status = PARSER_UNEXPECTED_TOKEN;
-        // free(t.value);
-        return NULL;
-    }
-    struct ast *elt = ast_new(AST_ARGUMENTS);
-    elt->value = t.value; // strdup(t.value); // copie la valeur du token dans
-                          // celle du nouveau noeud (ast->value = t.value)
-    return elt;
+    return pipeline(status, lexer);
 }
 
 /**
- * compound_list = {'\n'} and_or { ( ';' | '\n' ) {'\n'} and_or } [';'] {'\n'} ;
+ * list = and_or { ';' and_or } [ ';' ] ;
  */
-struct ast *compound_list(enum parser_status *status, struct lexer *lexer)
+static struct ast *list(enum parser_status *status, struct lexer *lexer)
 {
+    // fonction qui parse une liste. fonctionnement AST : fils gauche frère
+    // droit
     if (*status == PARSER_UNEXPECTED_TOKEN) // cas où le parse crash
         return NULL;
-    struct token t = lexer_peek(lexer);
-    while (t.type == TOKEN_EOL)
-    {
-        t = lexer_pop(lexer);
-    }
-    struct ast *compound = ast_new(AST_LIST);
-    struct ast *n = compound;
-    struct ast *child = and_or(status, lexer);
-    if (*status != PARSER_OK)
-    {
-        *status = PARSER_UNEXPECTED_TOKEN;
-        ast_free(compound);
-        free(t.value); // on garde ca au cas où c'est un word
+    struct ast *ast = ast_new(AST_LIST); // initialisation struct ast
+    ast->left =
+        and_or(status, lexer); // on aura forcement un "and_or" au début. Donc
+                               // c'est le fils donc on le met à gauche.
+    if (ast->left == NULL) // Si on a pas de and_or c'est que le parser a
+                           // planté. Il faudra ptet mettre à jour status ici
         return NULL;
-    }
-    compound->left = child;
-    t = lexer_peek(lexer);
-    while (t.type == TOKEN_SEMI_COLON || t.type == TOKEN_EOL)
+    struct ast *actual = ast; // variable temporaire pour parcourir les fils
+                              // gauche, soit les frère
+    struct token token = lexer_peek(
+        lexer); // variable contenant le token qu'on étudie actuellement
+    while (
+        token.type
+        == TOKEN_SEMI_COLON) // boucle -> check grammar : { ';' and_or } [ ';' ]
     {
-        t = lexer_pop(lexer);
-        while (t.type == TOKEN_EOL)
-        {
-            t = lexer_pop(lexer);
-        }
-
-        if ((t = lexer_peek(lexer)).type
+        if ((token = lexer_pop(lexer)).type
             == TOKEN_WORDS) // cas où on a un and_or et non juste un point
                             // virgule
         {
-            child = and_or(status, lexer);
-            if (*status != PARSER_OK)
-            {
-                ast_free(compound);
-                return NULL;
-            }
-            n->right = ast_new(AST_LIST);
-            n = n->right;
-            n->left = child;
+            actual->right = ast_new(AST_LIST); // on rajoute un frère
+            actual = actual->right; // on actualise la variable actual
+            actual->left =
+                and_or(status,
+                       lexer); // on met la valeur du and_or dans le fils gauche
         }
-        t = lexer_peek(lexer);
+        token = lexer_peek(lexer);
     }
-    if (t.type == TOKEN_SEMI_COLON)
+    return ast; // retour de l'ast complet
+}
+
+/**
+ * input=   list '\n'
+ *      | list EOF
+ *      | '\n'
+ *      | EOF;
+ */
+struct ast *parse(enum parser_status *status, struct lexer *lexer)
+{
+    struct token t = lexer_pop(lexer);
+    if (t.type == TOKEN_EOL || t.type == TOKEN_EOF)
+        return NULL;
+
+    struct ast *res = list(status, lexer);
+    if (*status != PARSER_OK)
     {
-        lexer_pop(lexer);
+        ast_free(res);
+        return NULL;
     }
     t = lexer_peek(lexer);
-    while (t.type == TOKEN_EOL)
+    if (t.type != TOKEN_EOL && t.type != TOKEN_EOF)
     {
-        t = lexer_pop(lexer);
+        fprintf(stderr, "parse: Error token: expected EOF or EOL, got %d\n",
+                t.type);
+        *status = PARSER_UNEXPECTED_TOKEN;
+        ast_free(res);
+        return NULL;
     }
-    return compound;
+    return res;
 }

@@ -68,8 +68,8 @@ int is_regular_file(const char *input) // check si c'est un ficher valide
 
 int exec_42sh(char *buff, int flag) // execution en cas de non stdin
 {
-    if (strlen(buff) > 0 && buff[strlen(buff) - 1] == '\n')//retrait dernier
-        //retour a la ligne
+    if (strlen(buff) > 0 && buff[strlen(buff) - 1] == '\n') // retrait dernier
+        // retour a la ligne
         buff[strlen(buff) - 1] = '\0';
     struct lexer *lexer = lexer_init(buff);
     enum parser_status status = PARSER_OK;
