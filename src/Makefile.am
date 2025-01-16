@@ -14,4 +14,11 @@ bin_PROGRAMS = 42sh
        parser/libparser.a \
 	   Exec/libexec.a \
 	   builtins/libbuiltins.a
-       
+
+check-local:
+	./../tests/test_suit.sh
+
+
+
+
+

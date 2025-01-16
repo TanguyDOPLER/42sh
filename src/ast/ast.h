@@ -6,19 +6,28 @@
 enum ast_type
 {
     AST_LIST, // fils gauche, frère droit
-    AST_AND_OR, // step deux, on s en fou pour l instant
-    PIPELINE, // step deux, on s en fou pour l instant
+    AST_AND,
+    AST_OR,
+    AST_NEGATION,
     AST_SIMPLE_COMMAND, // premier word = commande, word suivant = arguments.
                         // Tous les arguments sont à gauche en peigne
     AST_SHELL_COMMAND, // pour l instant c equivalent à un if, gauche true,
                        // droite false ou else. Si droit null -> pas de else
-    AST_ARGUMENTS
+    AST_ARGUMENTS,
+    AST_PIPE, // meme structure qu'une liste (fils gauche frr droit)
+    AST_REDIR_INPUT, //<
+    AST_REDIR_OUTPUT, //> et >|
+    AST_REDIR_AP_OUTPUT, //>>
+    AST_REDIR_DUP_INPUT, //>&
+    AST_REDIR_DUP_OUTPUT, //<&
+    AST_REDIR_DOUBLE
 };
 
 struct ast
 {
     enum ast_type type;
     char *value;
+    int io_type;
     struct ast *condition;
     struct ast *left;
     struct ast *right;

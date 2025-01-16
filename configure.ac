@@ -1,4 +1,5 @@
-AC_INIT([42sh], [1.0], [mehdi.denguir@epita.fr])
+AC_INIT([42sh], [1.0], [])
+AC_CONFIG_TESTDIR([tests])
 AM_INIT_AUTOMAKE([subdir-objects] [foreign])
 AM_SILENT_RULES([yes])
 AM_PROG_AR

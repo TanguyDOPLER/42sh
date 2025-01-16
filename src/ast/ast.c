@@ -23,8 +23,10 @@ void ast_free(struct ast *ast)
     ast_free(ast->right);
     ast->right = NULL;
 
-    // free(ast->value); //on risque de double free ici, faudra faire des copys
-    // à chaque fois
+    if (ast->type == AST_ARGUMENTS || ast->type == AST_SIMPLE_COMMAND
+        || (ast->type >= AST_REDIR_INPUT && ast->type <= AST_REDIR_DOUBLE))
+        free(ast->value); // free les fameux memory leaks de maxime et son
+                          // buffer :)
 
     ast_free(ast->condition);
     ast->condition = NULL;

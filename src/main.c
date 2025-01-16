@@ -1,3 +1,4 @@
+#include "lexer/token.h"
 #define _POSIX_C_SOURCE 200809L
 
 #include <err.h>
@@ -55,7 +56,7 @@ char *stdin_reader(void)
         }
     }
     buffer[i] = '\0';
-    fclose(stream);
+    // fclose(stream);
     return buffer;
 }
 
@@ -68,15 +69,27 @@ int is_regular_file(const char *input) // check si c'est un ficher valide
 
 int exec_42sh(char *buff, int flag) // execution en cas de non stdin
 {
+    int res = 0;
     if (strlen(buff) > 0 && buff[strlen(buff) - 1] == '\n') // retrait dernier
-        // retour a la ligne
+                                                            // retour a la ligne
+
         buff[strlen(buff) - 1] = '\0';
-    struct lexer *lexer = lexer_init(buff);
-    enum parser_status status = PARSER_OK;
-    struct ast *ast = parse(&status, lexer);
-    int res = exec_ast(ast);
+    struct lexer *lexer = lexer_init(buff); // FAIRE UN WHILE CURR CHAR PAS EOF
+    while (lexer->curr_token.type != TOKEN_EOF)
+    {
+        enum parser_status status = PARSER_OK;
+        struct ast *ast = parse(&status, lexer);
+        if (status == PARSER_UNEXPECTED_TOKEN)
+        {
+            if (flag)
+                free(buff);
+            lexer_free(lexer);
+            return 2;
+        }
+        res = exec_ast(ast);
+        ast_free(ast);
+    }
     lexer_free(lexer);
-    ast_free(ast);
     if (flag)
         free(buff);
     return res;

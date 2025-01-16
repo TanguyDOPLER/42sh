@@ -5,6 +5,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "token.h"
+
+static int isnumber(char c)
+{
+    return (c >= '0' && c <= '9');
+}
+
 struct lexer *lexer_init(const char *input)
 {
     struct lexer *lexer = calloc(1, sizeof(struct lexer));
@@ -22,6 +29,7 @@ void lexer_free(struct lexer *lexer)
     free(lexer);
 }
 
+/*
 static int is_exit(char *c, char type)
 {
     int i = 0;
@@ -34,8 +42,8 @@ static int is_exit(char *c, char type)
     }
     return 1;
 }
-
-enum token_type token_type(char *c, int flag)
+*/
+static enum token_type keyword_type(char *c, struct lexer *lexer)
 {
     if (strcmp(c, "if") == 0)
         return TOKEN_IF;
@@ -52,68 +60,91 @@ enum token_type token_type(char *c, int flag)
     else if (strcmp(c, "fi") == 0)
         return TOKEN_FI;
 
-    else if (strcmp(c, ";") == 0)
-        return TOKEN_SEMI_COLON;
+    else if (strcmp(c, "while") == 0)
+        return TOKEN_WHILE;
 
-    else if (flag == '#')
-        return TOKEN_COMMENT;
+    else if (strcmp(c, "until") == 0)
+        return TOKEN_UNTIL;
 
-    else if (c[0] == '\0')
-        return TOKEN_EOF;
+    else if (strcmp(c, "do") == 0)
+        return TOKEN_DO;
 
-    else if (c[0] == '\n')
-        return TOKEN_EOL;
+    else if (strcmp(c, "done") == 0)
+        return TOKEN_DONE;
+
+    else if (strcmp(c, "for") == 0)
+        return TOKEN_FOR;
+
+    else if (strcmp(c, "in") == 0)
+        return TOKEN_IN;
 
     else
     {
-        if (c[strlen(c) - 1] == '\'')
-        {
-            if (is_exit(c, '\'') == 1)
-                err(EXIT_FAILURE, "ERROR SYNTAX");
-        }
-        return TOKEN_WORDS;
+        size_t i = 0;
+        while (isnumber(c[i]))
+            i++;
+        if (i == strlen(c))
+            if (lexer->input[lexer->pos] == '>'
+                || lexer->input[lexer->pos] == '<')
+                return TOKEN_IONUMBER;
+    }
+    return TOKEN_WORDS;
+}
+
+static enum token_use token_use(char *c, struct lexer *lexer)
+{
+    if (c && (c[0] == '>' || c[0] == '<'))
+        return TYPE_REDIR;
+    if (c && lexer->pos > 0 && lexer->input[lexer->pos - 1] == '\"')
+        return TYPE_DOUBLE_QUOTES;
+    return TYPE_OTHER;
+}
+
+static int is_ope(char curr_char)
+{
+    switch (curr_char)
+    {
+    case '>':
+        return 2;
+    case '<':
+        return 2;
+    case '&':
+        return 2;
+    case '|':
+        return 2;
+    case '$':
+        return 2;
+    case '!':
+        return 2;
+    default:
+        return 0;
     }
 }
 
-enum token_use token_use(char *c)
+static int is_delim(char curr_char)
 {
-    if (strcmp(c, "if") == 0)
-        return TYPE_KEYWORD;
-
-    else if (strcmp(c, "else") == 0)
-        return TYPE_KEYWORD;
-
-    else if (strcmp(c, "then") == 0)
-        return TYPE_KEYWORD;
-
-    else if (strcmp(c, "elif") == 0)
-        return TYPE_KEYWORD;
-
-    else if (strcmp(c, "fi") == 0)
-        return TYPE_KEYWORD;
-
-    else if (strcmp(c, ";") == 0)
-        return TYPE_COMPOUND;
-
-    else if (c[0] == '\'')
-        return TYPE_WORDS;
-
-    else if (c[0] == '#')
-        return TYPE_OTHER;
-
-    else if (c[0] == '\n')
-        return TYPE_COMPOUND;
-
-    else if (c[0] == '\0')
-        return TYPE_OTHER;
-
-    else
-        return TYPE_WORDS;
+    switch (curr_char)
+    {
+    case ' ':
+        return 1;
+    case '\t':
+        return 1;
+    case '\0':
+        return 1;
+    case '\n':
+        return 1;
+    case ';':
+        return 2;
+    default:
+        return 0;
+    }
 }
 
-struct token create_token(char *buffer, int flag) // creation du token a return
+/*
+static struct token create_token(char *buffer, int flag, struct lexer *lexer) //
+creation du token a return
 {
-    enum token_type type = token_type(buffer, flag);
+    enum token_type type = token_type(buffer, flag, lexer);
     enum token_use use = TYPE_WORDS; // valeur de base
     use = token_use(buffer); // changer si j'ai le temps
     if (type != TOKEN_WORDS && type != TOKEN_S_QUOTE)
@@ -124,57 +155,218 @@ struct token create_token(char *buffer, int flag) // creation du token a return
     struct token tok = { use, type, buffer };
     return tok;
 }
+*/
 
-struct token lexer_next_token(struct lexer *lexer)
+static struct token create_token(char *buffer, enum token_type type,
+                                 struct lexer *lexer)
+{
+    enum token_type type_exact = type;
+    enum token_use use = token_use(buffer, lexer);
+
+    if (type == TOKEN_WORDS)
+    {
+        type_exact = keyword_type(buffer, lexer);
+        if (type_exact != TOKEN_WORDS && type_exact != TOKEN_IONUMBER)
+            free(buffer);
+    }
+    else if (type == TOKEN_INVALID)
+    {
+        err(EXIT_FAILURE, "ERROR SYNTAX");
+    }
+    struct token tok = { use, type_exact, buffer };
+    if (lexer) // just for compilation
+        return tok;
+    return tok;
+}
+
+static struct token read_delim(struct lexer *lexer)
+{
+    char curr_char = lexer->input[lexer->pos++];
+    if (curr_char == '\n')
+    {
+        return create_token(NULL, TOKEN_EOL, lexer);
+    }
+    if (curr_char == ';')
+    {
+        return create_token(NULL, TOKEN_SEMI_COLON, lexer);
+    }
+    return create_token(NULL, TOKEN_INVALID, lexer);
+}
+
+static struct token read_comment(struct lexer *lexer)
+{
+    while (lexer->input[lexer->pos] != '\0' && lexer->input[lexer->pos] != '\n')
+    {
+        lexer->pos++;
+    }
+    return create_token(NULL, TOKEN_COMMENT, lexer);
+}
+
+static struct token read_s_quote(struct lexer *lexer)
 {
     size_t size = 128;
-    char *buffer = malloc(size); // va nicker ta mère maxime MAIS
-                                 // VRAIMENTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+    char *buffer = calloc(size, sizeof(char));
     size_t i = 0;
-    int flag = 0; // Flag pour ' et #
-    char curr_char = lexer->input[lexer->pos]; // Current Lexer Char
-    while (curr_char == ' ') // retire les espaces parasites
-        curr_char = lexer->input[++lexer->pos];
-    while (curr_char != '\0'
-           && (flag
-               || (curr_char != ' ' && curr_char != ';' && curr_char != '\n')))
+    lexer->pos++;
+    while (lexer->input[lexer->pos] != '\'' && lexer->input[lexer->pos] != '\0')
     {
-        if (curr_char == '\'' || curr_char == '#')
-        // # se ferme a la fin d'un \n
-        //' doit se refermer sinon error
+        buffer[i++] = lexer->input[lexer->pos];
+        if (i > size - 2)
         {
-            if (flag == '\'')
-            {
-                flag = 0;
-            }
-            else
-                flag = curr_char;
+            size *= 2;
+            buffer = realloc(buffer, size);
         }
-        if (flag == '#' && curr_char == '\n') // Stoper le com au 1er \n
-        // peut merder si comm
+        lexer->pos++;
+    }
+    if (lexer->input[lexer->pos] == '\0')
+    {
+        free(buffer);
+        errx(EXIT_FAILURE, "ERROR SYNTAX");
+    }
+    lexer->pos++;
+    buffer[i] = '\0';
+    return create_token(buffer, TOKEN_WORDS, lexer);
+}
+
+static struct token read_d_quote(struct lexer *lexer)
+{
+    size_t size = 128;
+    char *buffer = calloc(size, sizeof(char));
+    size_t i = 0;
+    lexer->pos++;
+    while (lexer->input[lexer->pos] != '\"' && lexer->input[lexer->pos] != '\0')
+    {
+        if (lexer->input[lexer->pos] == '\\')
         {
-            break; // remettre le flag a 0 pour le prochain token
+            lexer->pos++;
         }
-        if (curr_char != '\'')
-            buffer[i++] = curr_char;
-        curr_char = lexer->input[++lexer->pos];
-        if (i >= size - 2) // 127 - \0 - potentiel ;
+        buffer[i++] = lexer->input[lexer->pos];
+        if (i > size - 2)
+        {
+            size *= 2;
+            buffer = realloc(buffer, size);
+        }
+        lexer->pos++;
+    }
+    if (lexer->input[lexer->pos] == '\0')
+    {
+        free(buffer);
+        errx(EXIT_FAILURE, "ERROR SYNTAX");
+    }
+    lexer->pos++;
+    buffer[i] = '\0';
+    return create_token(buffer, TOKEN_WORDS, lexer);
+}
+
+static struct token read_word(struct lexer *lexer)
+{
+    size_t size = 128;
+    char *buffer = calloc(size, sizeof(char));
+    size_t i = 0;
+    while (!is_delim(lexer->input[lexer->pos])
+           && !is_ope(lexer->input[lexer->pos]))
+    {
+        if (lexer->input[lexer->pos] == '\\')
+        {
+            lexer->pos++;
+        }
+        buffer[i++] = lexer->input[lexer->pos++];
+        if (i > size - 2)
         {
             size *= 2;
             buffer = realloc(buffer, size);
         }
     }
-    if (i == 0
-        && (curr_char == ';'
-            || curr_char == '\n')) // Ajout du ; pour le tokenizer en plus
-    // de l'utiliser en delimiteur
+    buffer[i] = '\0';
+    return create_token(buffer, TOKEN_WORDS, lexer);
+}
+
+static struct token read_operator(struct lexer *lexer)
+{
+    char curr_char = lexer->input[lexer->pos++];
+    if (curr_char == '!')
+        return create_token(NULL, TOKEN_NEGATION, lexer);
+    if (curr_char == '>')
     {
-        buffer[i++] = curr_char;
-        curr_char = lexer->input[++lexer->pos];
+        curr_char = lexer->input[lexer->pos++];
+        if (curr_char == '>')
+            return create_token(NULL, TOKEN_REDIR_AP_OUTPUT, lexer);
+        else if (curr_char == '&')
+            return create_token(NULL, TOKEN_REDIR_DUP_OUTPUT, lexer);
+        else if (curr_char == '|')
+            return create_token(NULL, TOKEN_REDIR_OUTPUT, lexer);
+        else
+        {
+            lexer->pos--;
+            return create_token(NULL, TOKEN_REDIR_OUTPUT, lexer);
+        }
     }
-    buffer[i] = '\0'; // Fin de string
-    struct token token = create_token(buffer, flag);
-    return token;
+    else if (curr_char == '<')
+    {
+        curr_char = lexer->input[lexer->pos++];
+        if (curr_char == '&')
+            return create_token(NULL, TOKEN_REDIR_DUP_INPUT, lexer);
+        else if (curr_char == '>')
+            return create_token(NULL, TOKEN_REDIR_DOUBLE, lexer);
+        else
+        {
+            lexer->pos--;
+            return create_token(NULL, TOKEN_REDIR_INPUT, lexer);
+        }
+    }
+    else if (curr_char == '&')
+    {
+        curr_char = lexer->input[lexer->pos++];
+        if (curr_char == '&')
+            return create_token(NULL, TOKEN_AND, lexer);
+    }
+    else if (curr_char == '|')
+    {
+        curr_char = lexer->input[lexer->pos++];
+        if (curr_char == '|')
+            return create_token(NULL, TOKEN_OR, lexer);
+        else
+        {
+            lexer->pos--;
+            return create_token(NULL, TOKEN_PIPE, lexer);
+        }
+    }
+    return create_token(NULL, TOKEN_INVALID, lexer);
+}
+
+struct token lexer_next_token(struct lexer *lexer)
+{
+    char curr_char = lexer->input[lexer->pos];
+    if (curr_char == '\0')
+    {
+        return create_token(NULL, TOKEN_EOF, lexer);
+    }
+    if (curr_char == ' ' || curr_char == '\t')
+    {
+        lexer->pos++;
+        return lexer_next_token(lexer);
+    }
+    if (is_delim(curr_char))
+    {
+        return read_delim(lexer);
+    }
+    if (curr_char == '#')
+    {
+        return read_comment(lexer);
+    }
+    if (curr_char == '\'')
+    {
+        return read_s_quote(lexer);
+    }
+    if (curr_char == '\"')
+    {
+        return read_d_quote(lexer);
+    }
+    if (is_ope(curr_char))
+    {
+        return read_operator(lexer);
+    }
+    return read_word(lexer);
 }
 
 struct token lexer_pop(struct lexer *lexer)

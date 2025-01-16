@@ -10,6 +10,9 @@ rm -f missing
 rm -f configure\~
 rm -f src/42sh-main.o
 rm -f tests/*.out
+rm -f tests/atconfig
+rm -f src/*.out
+rm -f *.out
 
 find . -name "42sh" -exec rm -f {} \;
 find . -name "Makefile" -exec rm -f {} \;
