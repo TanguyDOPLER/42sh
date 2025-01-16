@@ -93,6 +93,6 @@ int builtin_echo(int argc, char *argv[])
     if (print_newline)
         putchar('\n');
 
-    // fflush(stdout); // assure que la sortie est immédiatement écrite
+    fflush(stdout); // assure que la sortie est immédiatement écrite
     return 0;
 }
