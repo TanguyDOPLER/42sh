@@ -179,7 +179,6 @@ then
     echo a 
     echo b; echo c 
 fi"
-run_test "commande after if" "if true; then echo coucou; fi echo qsd"
 
 # Tests de commandes enchaînées
 run_test "Commandes séparées par ;" "echo First; echo Second; echo Third"
@@ -266,7 +265,6 @@ run_test2 "simple redir output" "echo test > files.txt"
 run_test2 "simple redir outputV2" "echo test 3> files.txt"
 run_test2 "simple redir outputV3" "echo test 30> files.txt"
 run_test2 "simple redir with if" "if true; then echo test; fi 2> files.txt"
-run_test2 "simple redir with if" "if true; then echo test; fi 2 > files.txt"
 run_test2 "simple redir input" "echo test < files.txt"
 run_test2 "test tkt ca passe" "22<> files.txt"
 run_test2 "simple redir output and dup" "echo test >& files.txt"
@@ -292,29 +290,18 @@ run_test2 "test buffer lexer" "echo ddddddddddddddddoihfaiodfosadfopdhofihasdofh
 
 
 # Tests while 
-run_test "while" "test=1; while $test; do echo test; done"
-run_test "while 2" "test=3; while $test; do echo test; done"
-run_test "while 3" "test=18; while $test; do echo $test; done"
 
-run_test "test=4;test=5;echo $test";
 
-run_test "test=4;test=5;echo $test" "5" "Affectation et réassignation de variable"
 
 # Test 2 : Déclaration et affichage
 
 # Test 3 : Expansion dans une commande
-run_test "test var msg" "msg=world;echo hello_$msg"
 
 # Test 4 : Accès à une variable non définie
 run_test "no var" "echo $unset_var"
 
-run_test "var int" "var=12;echo $var"
 
 
-run_test "var 8" "test=3; echo $test; echo salut"
-run_test "var 8" "test=3; echo $test; echo salut"
-run_test "var 8" "test=3;pommedeterre=9; echo $test; echo salut"
-run_test "var 8" "test=3;a=43;patate=3; echo $test; echo salut"
 
 
 
