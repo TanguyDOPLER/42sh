@@ -42,7 +42,8 @@ enum token_type
     TOKEN_IN, // GOOD
     TOKEN_NEGATION, // GOOD
     TOKEN_IONUMBER,
-    TOKEN_INVALID
+    TOKEN_INVALID,
+    TOKEN_ASSIGNMENT_WORD
 };
 
 struct token

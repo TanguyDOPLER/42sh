@@ -2,7 +2,8 @@ SUBDIRS = ast \
        lexer \
        parser \
 	   builtins \
-	   Exec
+	   Exec \
+       utils
 
 bin_PROGRAMS = 42sh
 42sh_SOURCES = main.c
@@ -13,7 +14,8 @@ bin_PROGRAMS = 42sh
        ast/libast.a \
        parser/libparser.a \
 	   Exec/libexec.a \
-	   builtins/libbuiltins.a
+	   builtins/libbuiltins.a \
+       utils/libutils.a
 
 check-local:
 	./../tests/test_suit.sh

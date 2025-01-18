@@ -24,7 +24,8 @@ void ast_free(struct ast *ast)
     ast->right = NULL;
 
     if (ast->type == AST_ARGUMENTS || ast->type == AST_SIMPLE_COMMAND
-        || (ast->type >= AST_REDIR_INPUT && ast->type <= AST_REDIR_DOUBLE))
+        || (ast->type >= AST_REDIR_INPUT && ast->type <= AST_REDIR_DOUBLE)
+        || ast->type == AST_ASSIGNMENT_WORD)
         free(ast->value); // free les fameux memory leaks de maxime et son
                           // buffer :)
 

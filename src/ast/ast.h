@@ -20,7 +20,11 @@ enum ast_type
     AST_REDIR_AP_OUTPUT, //>>
     AST_REDIR_DUP_INPUT, //>&
     AST_REDIR_DUP_OUTPUT, //<&
-    AST_REDIR_DOUBLE
+    AST_REDIR_DOUBLE,
+    AST_WHILE,
+    AST_UNTIL,
+    AST_FOR,
+    AST_ASSIGNMENT_WORD
 };
 
 struct ast

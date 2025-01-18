@@ -13,6 +13,9 @@
 #include "ast/ast.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
+#include "utils/shelldon.h"
+
+struct shelldon shelldon = { NULL };
 
 char *file_reader(char *input)
 {
@@ -92,11 +95,14 @@ int exec_42sh(char *buff, int flag) // execution en cas de non stdin
     lexer_free(lexer);
     if (flag)
         free(buff);
+    shelldon_free(); // struct globale shelldon totalement free
     return res;
 }
 
 int main(int argc, char *argv[])
 {
+    // Initialiser la structure globale
+    shelldon_init();
     char *buff = NULL;
     int is_regfile = 0;
     if (argc > 1)

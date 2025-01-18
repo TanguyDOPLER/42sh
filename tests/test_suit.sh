@@ -19,7 +19,7 @@ SH_ERR="$TMP_DIR/sh_err"
 SH_RED="$TMP_DIR/sh_dir"
 
 # Chemin vers votre shell 42sh
-TEST_SHELL="./42sh"
+TEST_SHELL="$BIN_PATH"
 
 # Compteur de tests
 TESTS_RUN=0
@@ -53,9 +53,9 @@ run_test() {
         echo -e "${RED}[FAIL]${RESET} $description"
         echo -e "${YELLOW}Command:${RESET} $command"
         echo -e "${BLUE}--- Expected stdout ---${RESET}"
-        cat "$BASH_OUT"
+        cat -e "$BASH_OUT"
         echo -e "${BLUE}--- Actual stdout ---${RESET}"
-        cat "$SH_OUT"
+        cat -e "$SH_OUT"
         echo -e "${BLUE}--- Expected stderr ---${RESET}"
         cat "$BASH_ERR"
         echo -e "${BLUE}--- Actual stderr ---${RESET}"
@@ -76,14 +76,13 @@ run_test2() {
     echo -e "$command" | bash --posix >"$BASH_OUT" 2>"$BASH_ERR"
     local bash_ret=$?
     cat -e files.txt > $BASH_RED
-
     # Exécution dans 42sh
     echo -e "$command" | $TEST_SHELL >"$SH_OUT" 2>"$SH_ERR"
     local sh_ret=$?
     cat -e files.txt > $SH_RED
 
     # Comparaison des résultats
-    if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ] && diff -q "$BASH_RED" "$SH_RED";  then
+    if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ] && diff -q "$BASH_RED" "$SH_RED" > /dev/null;  then
         echo -e "$GREEN[OK]${RESET} $description"
         ((TESTS_SUCCESS++))
     else
@@ -103,7 +102,39 @@ run_test2() {
     fi
 }
 
+run_test_file() {
+    local description="$1"
+    local command="$2"
 
+    ((TESTS_RUN++))
+
+    # Exécution dans /bin/bash
+    bash --posix $command >"$BASH_OUT" 2>"$BASH_ERR"
+    local bash_ret=$?
+    # Exécution dans 42sh
+    $TEST_SHELL $command >"$SH_OUT" 2>"$SH_ERR"
+    local sh_ret=$?
+
+    # Comparaison des résultats
+    if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ]; then
+        echo -e "$GREEN[OK]${RESET} $description"
+        ((TESTS_SUCCESS++))
+    else
+        echo -e "${RED}[FAIL]${RESET} $description"
+        echo -e "${YELLOW}Command:${RESET} $command"
+        echo -e "${BLUE}--- Expected stdout ---${RESET}"
+        cat -e "$BASH_OUT"
+        echo -e "${BLUE}--- Actual stdout ---${RESET}"
+        cat -e "$SH_OUT"
+        echo -e "${BLUE}--- Expected stderr ---${RESET}"
+        cat "$BASH_ERR"
+        echo -e "${BLUE}--- Actual stderr ---${RESET}"
+        cat "$SH_ERR"
+        echo -e "${BLUE}Expected return code:${RESET} $bash_ret"
+        echo -e "${BLUE}Actual return code:${RESET} $sh_ret"
+        echo
+    fi
+}
 
 # Début des tests
 print_header "TESTS POUR 42SH - STEP 1"
@@ -114,6 +145,7 @@ run_test "Commande conditionnelle: if-then-else" "if true; then echo OK; else ec
 run_test "Commande conditionnelle: if-then-elif-else" "if false; then echo Fail; elif true; then echo OK; else echo Fail; fi"
 run_test "Liste de commandes avec ;" "echo foo; echo bar"
 run_test "Liste de commandes avec ; final" "echo foo; echo bar;"
+run_test "List de commandes avec erreur" "echo test; ech loupe; qsd"
 run_test "Liste composée avec \\n" "if true; then echo OK; echo Still OK; fi"
 run_test "Quotes simples" "echo 'This is a test'"
 run_test "Quotes simples avec spécial" "echo 'Special # characters should not be treated as comments'"
@@ -138,6 +170,16 @@ run_test "If-then-else avec true" "if true; then echo True branch; else echo Fal
 run_test "If-then-else avec false" "if false; then echo True branch; else echo False branch; fi"
 run_test "If-elif-else complexe" "if false; then echo First branch; elif true; then echo Second branch; else echo Final branch; fi"
 run_test "If-elif-else toutes fausses" "if false; then echo First branch; elif false; then echo Second branch; else echo Final branch; fi"
+run_test "If error case on condition" "if ech qsd; then echo camarche; fi"
+run_test "Elif error case : missing then" "if false; then echo fqd; elif true; echo qsd; fi"
+run_test "If without fi at then end" "if true; then echo test;"
+run_test "if with retour à la ligne" "if false 
+true
+then 
+    echo a 
+    echo b; echo c 
+fi"
+run_test "commande after if" "if true; then echo coucou; fi echo qsd"
 
 # Tests de commandes enchaînées
 run_test "Commandes séparées par ;" "echo First; echo Second; echo Third"
@@ -191,6 +233,7 @@ run_test "simple and with builtin true" "true && echo 2"
 run_test "simple and with builtinf false" "false && echo 2"
 run_test "simple and with builtin true V2" "echo 2 && true"
 run_test "simple and with builtinf false V2" "echo 2 && false"
+run_test "simple error case" "ech test || echo camarche";
 run_test "simple or" "echo 1 || echo 2"
 run_test "simple or with builtin true" "true || echo 2"
 run_test "simple or with builtinf false" "false || echo 2"
@@ -219,7 +262,73 @@ run_test "if with negation V2" "! if false; then echo ok; fi"
 run_test "elif with negation" "! if false; then echo ok; elif true; then echo ok2; else echo marcheaps; fi"
 
 # Tests IO/rediréction
-run_test2 "simple redir" "echo test > files.txt"
+run_test2 "simple redir output" "echo test > files.txt"
+run_test2 "simple redir outputV2" "echo test 3> files.txt"
+run_test2 "simple redir outputV3" "echo test 30> files.txt"
+run_test2 "simple redir with if" "if true; then echo test; fi 2> files.txt"
+run_test2 "simple redir with if" "if true; then echo test; fi 2 > files.txt"
+run_test2 "simple redir input" "echo test < files.txt"
+run_test2 "test tkt ca passe" "22<> files.txt"
+run_test2 "simple redir output and dup" "echo test >& files.txt"
+run_test2 "simple redir <>" "echo test <> files.txt"
+run_test2 "simple redir >|" "echo test >| files.txt"
+run_test2 "simple redir >>" "echo 2>> files.txt"
+run_test2 "simple redir <&" "echo test <&1000000000000000000; echo salut"
+run_test2 "error case >" "echo test >"
+run_test2 "error case wrong io number" "echo test 65498> files.txt"
+run_test2 "error case >" "echo test >"
+run_test2 "error case >" "echo test >"
+
+run_test2 "error case input" "test echo"
+run_test2 "error case ;;" "echo t ;;"
+run_test2 "error case fi" "if true then echo test fi"
+run_test2 "error case |" "echo |"
+run_test2 "error case X" ""
+run_test2 "simple redir <&" "echo test > echo > echo > echo >> testo.txt"
+run_test2 "echo -e" "echo -e \\\n\\\t\a\l\u\t\ \l\e\s\ \e\n\f\a\n\t\; echo test"
+run_test2 "comment" "echo not#first"
+run_test2 "comment 2" "echo not #just a comment"
+run_test2 "test buffer lexer" "echo ddddddddddddddddoihfaiodfosadfopdhofihasdofhopasdhopfhasdofoadshfoadsfoaodshfoashdofosadfhoasdhofoasdhfaodsifhoasdhfohadosfoadshfiohaosdhfoahsdfhadsfhdaoshfdhasofhodashfodahsofhoshfosdoifhasodhfoasdhfohsdofhodsfhosadhfhdsfhoiasdfoiashdfohsdofhodsfhoiasdfhoidashfohdsofhfhoohfishosadfohifsadhoidfoahisdfoahsohdfsohfdohfdaoshofdhhpifadphfdphfadhfdsohifadshadfsohiadfsohidfashipfdoishfopasdhfoipasdhfoihdsioufhaiosduhfisdhfiuashdofihaosdifhoasdhfoidhsfohdsofihdsfoivyhnovhnrytvoreyut0auvyntoufnoivtu98rantv9fdygvcgfonfydgoivhfgovdiogf"
+
+
+# Tests while 
+run_test "while" "test=1; while $test; do echo test; done"
+run_test "while 2" "test=3; while $test; do echo test; done"
+run_test "while 3" "test=18; while $test; do echo $test; done"
+
+run_test "test=4;test=5;echo $test";
+
+run_test "test=4;test=5;echo $test" "5" "Affectation et réassignation de variable"
+
+# Test 2 : Déclaration et affichage
+
+# Test 3 : Expansion dans une commande
+run_test "test var msg" "msg=world;echo hello_$msg"
+
+# Test 4 : Accès à une variable non définie
+run_test "no var" "echo $unset_var"
+
+run_test "var int" "var=12;echo $var"
+
+
+run_test "var 8" "test=3; echo $test; echo salut"
+run_test "var 8" "test=3; echo $test; echo salut"
+run_test "var 8" "test=3;pommedeterre=9; echo $test; echo salut"
+run_test "var 8" "test=3;a=43;patate=3; echo $test; echo salut"
+
+
+
+run_test "echo -E" "echo -E \\ salut les copian"
+echo "echo -e \\n \\t \\" >> test.txt
+run_test_file "double script" "test.txt"
+cat test.txt
+rm -rf test.txt
+
+
+
+
+
+
 
 
 
@@ -235,4 +344,3 @@ fi
 
 # Nettoyage
 rm -rf "$TMP_DIR"
-

@@ -17,7 +17,7 @@ struct lexer *lexer_init(const char *input)
     struct lexer *lexer = calloc(1, sizeof(struct lexer));
     lexer->input = input;
     lexer->pos = 0;
-    struct token tok = { 1, 1, NULL };
+    struct token tok = { 1, 1, NULL }; // valeur de base
     lexer->curr_token = tok;
     return lexer;
 }
@@ -43,6 +43,7 @@ static int is_exit(char *c, char type)
     return 1;
 }
 */
+
 static enum token_type keyword_type(char *c, struct lexer *lexer)
 {
     if (strcmp(c, "if") == 0)
@@ -91,7 +92,8 @@ static enum token_type keyword_type(char *c, struct lexer *lexer)
     return TOKEN_WORDS;
 }
 
-static enum token_use token_use(char *c, struct lexer *lexer)
+static enum token_use token_use(char *c,
+                                struct lexer *lexer) // Useless pour le moment
 {
     if (c && (c[0] == '>' || c[0] == '<'))
         return TYPE_REDIR;
@@ -112,8 +114,6 @@ static int is_ope(char curr_char)
         return 2;
     case '|':
         return 2;
-    case '$':
-        return 2;
     case '!':
         return 2;
     default:
@@ -125,6 +125,8 @@ static int is_delim(char curr_char)
 {
     switch (curr_char)
     {
+    case '#':
+        return 1; // 1 c'est juste des delim
     case ' ':
         return 1;
     case '\t':
@@ -132,7 +134,7 @@ static int is_delim(char curr_char)
     case '\0':
         return 1;
     case '\n':
-        return 1;
+        return 2; // 2 = delim que je tokenize
     case ';':
         return 2;
     default:
@@ -160,10 +162,10 @@ creation du token a return
 static struct token create_token(char *buffer, enum token_type type,
                                  struct lexer *lexer)
 {
-    enum token_type type_exact = type;
-    enum token_use use = token_use(buffer, lexer);
-
-    if (type == TOKEN_WORDS)
+    enum token_type type_exact = type; // pour les types un peu speciaux
+    enum token_use use = token_use(buffer, lexer); // useless rn
+    if (type == TOKEN_WORDS
+        || type == TOKEN_S_QUOTE) // Pour les types genre IO_NUMBER
     {
         type_exact = keyword_type(buffer, lexer);
         if (type_exact != TOKEN_WORDS && type_exact != TOKEN_IONUMBER)
@@ -179,7 +181,17 @@ static struct token create_token(char *buffer, enum token_type type,
     return tok;
 }
 
-static struct token read_delim(struct lexer *lexer)
+static struct token read_comment(struct lexer *lexer)
+{
+    while (lexer->input[lexer->pos] != '\0' && lexer->input[lexer->pos] != '\n')
+    {
+        lexer->pos++; // passe tout jusqu'a la fin ou un \n pour les comment
+    }
+    return create_token(NULL, TOKEN_COMMENT, lexer);
+}
+
+static struct token
+read_delim(struct lexer *lexer) // Juste les token pour des delimiteur speciaux
 {
     char curr_char = lexer->input[lexer->pos++];
     if (curr_char == '\n')
@@ -193,25 +205,17 @@ static struct token read_delim(struct lexer *lexer)
     return create_token(NULL, TOKEN_INVALID, lexer);
 }
 
-static struct token read_comment(struct lexer *lexer)
+static int read_s_quote(struct lexer *lexer, char *buffer, size_t i)
+// actualise le buffer de read_word pour ajouter les quotes
+// i c'est la position dans le buffer
 {
-    while (lexer->input[lexer->pos] != '\0' && lexer->input[lexer->pos] != '\n')
-    {
-        lexer->pos++;
-    }
-    return create_token(NULL, TOKEN_COMMENT, lexer);
-}
-
-static struct token read_s_quote(struct lexer *lexer)
-{
-    size_t size = 128;
-    char *buffer = calloc(size, sizeof(char));
-    size_t i = 0;
-    lexer->pos++;
+    size_t size = strlen(lexer->input);
+    ;
+    lexer->pos++; // passe le premier '
     while (lexer->input[lexer->pos] != '\'' && lexer->input[lexer->pos] != '\0')
     {
         buffer[i++] = lexer->input[lexer->pos];
-        if (i > size - 2)
+        if (i > size - 2) // -1 pour eviter les overflow et -2 pour \0
         {
             size *= 2;
             buffer = realloc(buffer, size);
@@ -221,18 +225,16 @@ static struct token read_s_quote(struct lexer *lexer)
     if (lexer->input[lexer->pos] == '\0')
     {
         free(buffer);
-        errx(EXIT_FAILURE, "ERROR SYNTAX");
+        fprintf(stderr, "BAD SINGLE QUOTE\n");
+        exit(2);
     }
-    lexer->pos++;
-    buffer[i] = '\0';
-    return create_token(buffer, TOKEN_WORDS, lexer);
+    lexer->pos++; // passe le 2eme '
+    return i;
 }
 
-static struct token read_d_quote(struct lexer *lexer)
+static int read_d_quote(struct lexer *lexer, char *buffer, size_t i)
 {
-    size_t size = 128;
-    char *buffer = calloc(size, sizeof(char));
-    size_t i = 0;
+    size_t size = strlen(lexer->input);
     lexer->pos++;
     while (lexer->input[lexer->pos] != '\"' && lexer->input[lexer->pos] != '\0')
     {
@@ -251,24 +253,46 @@ static struct token read_d_quote(struct lexer *lexer)
     if (lexer->input[lexer->pos] == '\0')
     {
         free(buffer);
-        errx(EXIT_FAILURE, "ERROR SYNTAX");
+        fprintf(stderr, "BAD DOUBLE QUOTE\n");
+        exit(2);
     }
     lexer->pos++;
-    buffer[i] = '\0';
-    return create_token(buffer, TOKEN_WORDS, lexer);
+    return i;
 }
 
 static struct token read_word(struct lexer *lexer)
 {
-    size_t size = 128;
+    int already_caught_equal = 0;
+    size_t size = strlen(lexer->input);
     char *buffer = calloc(size, sizeof(char));
     size_t i = 0;
     while (!is_delim(lexer->input[lexer->pos])
            && !is_ope(lexer->input[lexer->pos]))
     {
+        if (lexer->input[lexer->pos] == '\'')
+        {
+            i = read_s_quote(lexer, buffer, i);
+            continue;
+        }
+
+        if (lexer->input[lexer->pos] == '\"')
+        {
+            i = read_d_quote(lexer, buffer, i);
+            continue;
+        }
+
         if (lexer->input[lexer->pos] == '\\')
         {
             lexer->pos++;
+        }
+        if (lexer->input[lexer->pos] == '=')
+        {
+            if (i != 0 && !already_caught_equal)
+            {
+                lexer->pos++;
+                return create_token(buffer, TOKEN_ASSIGNMENT_WORD, lexer);
+            }
+            already_caught_equal = 1;
         }
         buffer[i++] = lexer->input[lexer->pos++];
         if (i > size - 2)
@@ -346,21 +370,11 @@ struct token lexer_next_token(struct lexer *lexer)
         lexer->pos++;
         return lexer_next_token(lexer);
     }
+    if (curr_char == '#')
+        return read_comment(lexer);
     if (is_delim(curr_char))
     {
         return read_delim(lexer);
-    }
-    if (curr_char == '#')
-    {
-        return read_comment(lexer);
-    }
-    if (curr_char == '\'')
-    {
-        return read_s_quote(lexer);
-    }
-    if (curr_char == '\"')
-    {
-        return read_d_quote(lexer);
     }
     if (is_ope(curr_char))
     {
