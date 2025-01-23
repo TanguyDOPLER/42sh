@@ -1,0 +1,429 @@
+#define _POSIX_C_SOURCE 200809L
+
+#include "exec.h"
+
+#include <string.h>
+
+#include "../utils/shelldon.h"
+#include "../utils/variable.h"
+
+static int exec_list(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    if (ast == NULL) // on fait rien si on tombe sur null
+        return 0;
+    int result = exec_ast(ast->left, status); // on exec le premier fils
+    if (result == 2 || status->status != EXEC_OK) // gestion erreur
+    {
+        fprintf(stderr, "exec_list, failed on execution of first son\n");
+    }
+    ast = ast->right; // on passe au deuxième fils (implémentation fils gauche
+                      // frr droit)
+    while (ast != NULL && ast->type == AST_LIST)
+    {
+        result = exec_ast(ast->left, status); // on exec le noeud suivant
+        if (result == 2
+            || status->status
+                != EXEC_OK) // gestion erreur, ici c'est si ca a crash
+        {
+            fprintf(stderr,
+                    "exec_list, failed on execution of on of the sons\n");
+        }
+        ast = ast->right; // on passe au frère suivant
+    }
+    return result; // normalement ici c'est comme return 0;
+}
+
+static int exec_and_or(struct ast *ast, struct exec_status *status)
+{ // dans notre programme, 0 = true, 1 = false, 2 = erreur
+    if (status->status != EXEC_OK)
+        return 2;
+    if (ast == NULL)
+        return 0;
+    int res;
+    if (ast->type == AST_AND) // cas AND
+    {
+        if ((res = exec_ast(ast->left, status)) != 0) // left associativity
+            return res;
+        return exec_ast(ast->right, status);
+    }
+    else if (ast->type == AST_OR) // cas OR
+    {
+        if ((res = exec_ast(ast->left, status)) == 0) // left associativity
+            return res;
+        if (res == 2 || status->status != EXEC_OK)
+        {
+            fprintf(stderr,
+                    "exec_and_or(or), failed on execution of ast.left\n");
+            return 2;
+        }
+        return exec_ast(ast->right, status);
+    }
+    else // WRONG CASE
+    {
+        fprintf(stderr, "exec_and_or, got wrong ast.type\n");
+        return 2;
+    }
+}
+
+static int detect_builtin(int argc, char **argv,
+                          struct exec_status *status) // argv null terminated
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    if (!strcmp(argv[0], "echo")) // cas où on tombe sur le builtin echo
+        return builtin_echo(argc - 1, argv); // call fonction builtin
+    else if (!strcmp(argv[0], "true")) // cas où on tombe sur le builtin true
+        return builtin_true();
+    else if (!strcmp(argv[0], "false")) // cas où on tombe sur le builtin echo
+        return builtin_false();
+    else if (!strcmp(argv[0], "exit")) // cas où on tombe sur le builtin echo
+        return builtin_exit(argv, status);
+    else if (!strcmp(argv[0], "cd")) // cas où on tombe sur le builtin echo
+        return builtin_cd(argv[1]);
+    else if (!strcmp(argv[0], ".")) // cas où on tombe sur le builtin echo
+        return builtin_dot(argv[1]);
+    return -3; // on a pas détecter de builtin, donc on continu sur execvp
+}
+
+static int count_arguments(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    int count = 1; // Initialisé à 1 pour inclure le NULL final
+    while (ast) // on compte le nb d'arguments y compris la commande. Cf. man
+                // page execvp(3)
+    {
+        count++;
+        ast = ast->left;
+    }
+    return count;
+}
+
+static char *join_strings(char **strings, size_t num_strings)
+{
+    size_t total_length = 0;
+    for (size_t i = 0; i < num_strings; i++)
+    {
+        total_length += strlen(strings[i]);
+    }
+
+    char *result = malloc(total_length + 1);
+    if (result == NULL)
+    {
+        fprintf(stderr, "Erreur d'allocation mémoire\n");
+        return NULL;
+    }
+
+    size_t offset = 0;
+    for (size_t i = 0; i < num_strings; i++)
+    {
+        strcpy(result + offset, strings[i]);
+        offset += strlen(strings[i]);
+    }
+
+    return result;
+}
+
+static int is_var_index(const char *str)
+{
+    int res = 0;
+    while (*str)
+    {
+        if (!(*str >= '0' && *str <= '9'))
+        {
+            return 0;
+        }
+        res *= 10;
+        res += *str - '0';
+        str++;
+    }
+    return res;
+}
+
+static char **create_argument_list(struct ast *ast, struct exec_status *status)
+{
+    int number_argument = count_arguments(ast, status);
+
+    char **argv = calloc(
+        number_argument,
+        sizeof(char *)); // initialisation du tableau de char * pour execvp
+    for (int i = 0; i + 1 < number_argument; i++) // on rempli le tableau
+    {
+        if (i == 0) // le premier élément trouver est le nom de la commande
+                    // donc pas une commande
+        {
+            argv[i] = ast->value;
+        }
+        else
+        {
+            if (strcmp("$@", ast->value) == 0 || strcmp("$*", ast->value) == 0)
+            {
+                argv[i] =
+                    join_strings(shelldon.list_args, shelldon.len_list_args);
+            }
+            else
+            {
+                char *cp_ast_value = strdup(ast->value);
+                int is_var = is_variable(&cp_ast_value);
+                if (is_var == 0) // pas une variable
+                {
+                    argv[i] = ast->value; // on prend la valeur de chaque noeud
+                                          // à gauche
+                }
+                else if (is_var == 1) // une variable
+                {
+                    int index = is_var_index(cp_ast_value);
+                    if (index)
+                        argv[i] =
+                            get_var_at_index(i); // pour les variables $1...$n
+                    else
+                    {
+                        argv[i] = value_of_variable(
+                            cp_ast_value); // pour les autre variables
+                    }
+                }
+                else // erreur
+                {
+                    free(argv);
+                    fprintf(stderr, "%s: bad substitution\n", ast->value);
+                    free(cp_ast_value);
+                    return NULL;
+                }
+                free(cp_ast_value);
+            }
+        }
+        ast = ast->left;
+    }
+    return argv;
+} // 36
+
+static int exec_simple_command(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    int resultat = 0;
+    char **argv = create_argument_list(ast, status);
+    shelldon.list_args = argv; // change $@
+    shelldon.len_list_args = count_arguments(ast, status) - 1;
+    if (argv == NULL || status->status != EXEC_OK)
+        return 2;
+    resultat = detect_builtin(count_arguments(ast, status), argv,
+                              status); // on detecte si on est sur un builtins
+    if (resultat != -3) // cas où on est sur un builtin
+    {
+        free(argv); // free le tableau completement
+        shelldon.list_args = NULL;
+        return resultat; // free result builtins
+    }
+    int id = fork(); // fork pour execvp
+    if (id == 0) // enfant
+    {
+        if (execvp(argv[0], argv) == -1) // on execute la commande
+        {
+            fprintf(stderr, "non existing command\n"); // ca se passe mal
+            exit(127); // jsp pq 127 mais ca vient de 21sh donc ca marche
+        }
+        return 0; // ca se passe bien
+    }
+    else // parent
+    {
+        int status;
+        waitpid(id, &status, 0); // on attend l'enfant
+        int exit_stat;
+        exit_stat = WEXITSTATUS(status); // on récupère le résultat de l'enfant
+        free(argv); // free le tableau completement
+        shelldon.list_args = NULL;
+        shelldon.len_list_args = 0;
+        if (exit_stat == 127) // on gère en fonction
+        {
+            fprintf(stderr,
+                    "failed on exec simple command. returned result from child "
+                    "process is 127\n");
+            return 127;
+        }
+        return exit_stat; // a changer ici prcq ca marche pas
+    }
+} // 34
+
+static int exec_while_until(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    int res = 0;
+    if (ast->type == AST_WHILE)
+    {
+        while (exec_ast(ast->condition, status) == 0
+               && status->status == EXEC_OK)
+            res = exec_ast(ast->left, status);
+    }
+    else if (ast->type == AST_UNTIL)
+    {
+        while (exec_ast(ast->condition, status) != 0
+               && status->status == EXEC_OK)
+            // il se passe quoi si la condition crach?
+            res = exec_ast(ast->left, status);
+    }
+    else
+    {
+        return 2;
+    }
+    return res;
+}
+
+static int exec_for(struct ast *ast, struct exec_status *status)
+{
+    int res = 0;
+    char *var_name;
+    char *var_value;
+    if (ast->len_values)
+    {
+        for (int i = 0; i < ast->len_values; i++)
+        {
+            var_name = strdup(ast->value);
+            variable_add(var_name, ast->for_values[i]);
+            exec_ast(ast->left, status);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < shelldon.len_list_args; i++)
+        {
+            var_name = strdup(ast->value);
+            var_value = strdup(shelldon.list_args[i]);
+            variable_add(var_name, var_value);
+            exec_ast(ast->left, status);
+        }
+    }
+    return res;
+}
+
+static int exec_shell_command(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    int condition = exec_ast(ast->condition, status); // on évalue la condition
+    if (condition == 2 || status->status != EXEC_OK) // gestion erreur
+    {
+        fprintf(stderr, "failed on exec shell command condition\n");
+        return 2;
+    }
+    if (condition) // on execute right si la condition est à 1 (fausse)
+    {
+        return exec_ast(ast->right, status);
+    }
+    return exec_ast(ast->left, status); // sinon on execute left
+}
+
+/*static int count_command_(struct ast *ast)
+{
+    int count = 0;
+    while (ast != NULL && ast->type == AST_PIPE)
+    {
+        count++;
+        ast = ast->right;
+    }
+    return count;
+}*/
+
+static int exec_pipe(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    if (ast == NULL)
+        return 0;
+    if (ast->right
+        == NULL) // cas où on a juste une simple commande, on se fait pas chier
+        return exec_ast(ast->left, status);
+    int save_stdin = 3333; // value to save STDIN
+    dup2(STDIN_FILENO, save_stdin); // saving STDIN
+    int pipefds[2];
+    if (pipe(pipefds) == -1 || status->status != EXEC_OK)
+    {
+        return 2;
+    }
+    int id = fork(); // FIRST commande (left one)
+    if (id == 0) // child process
+    {
+        close(pipefds[0]); // Cf vide conf redirection 2019
+        dup2(pipefds[1], STDOUT_FILENO);
+        close(pipefds[1]);
+        exit(exec_ast(ast->left, status));
+    }
+    else // parent process
+    {
+        close(pipefds[1]);
+        waitpid(id, NULL, 0);
+    }
+    int id2 = fork(); // seoncd commande (right one)
+    if (id2 == 0)
+    {
+        close(pipefds[1]); // Cf vide conf redirection 2019
+        dup2(pipefds[0], STDIN_FILENO);
+        close(pipefds[0]);
+        exit(exec_ast(ast->right, status));
+    }
+    else
+    {
+        int status2;
+        close(pipefds[0]);
+        close(pipefds[1]);
+        waitpid(id2, &status2, 0);
+        int exit_stat2;
+        exit_stat2 = WEXITSTATUS(status2);
+        dup2(save_stdin, STDIN_FILENO);
+        return exit_stat2;
+    }
+} // 37
+
+// permet d'enregistrer la variable
+int exec_assign_var(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    char *name = strdup(ast->value); // copie le nom de la variable
+    if (ast->left->type != AST_SIMPLE_COMMAND)
+        return 2;
+    char *val = strdup(
+        ast->left->value); // copie la valeur de la variable (qui est dans left)
+    variable_add(name, val); // enregistrement de la variable dans shelldon ;)
+    return 0;
+}
+
+int exec_ast(struct ast *ast, struct exec_status *status)
+{ // on étudie le type du premier noeud de l'ast
+    if (ast == NULL)
+        return 0;
+    if (ast->type >= AST_REDIR_INPUT && ast->type <= AST_REDIR_DOUBLE)
+        return exec_redir(ast, status);
+    switch (ast->type)
+    {
+    case AST_LIST:
+        return exec_list(ast, status);
+    case AST_AND:
+    case AST_OR:
+        return exec_and_or(ast, status);
+    case AST_SIMPLE_COMMAND:
+        return exec_simple_command(ast, status);
+    case AST_SHELL_COMMAND:
+        return exec_shell_command(ast, status);
+    case AST_PIPE:
+        return exec_pipe(ast, status);
+    case AST_NEGATION:
+        return (!exec_ast(ast->left, status));
+    case AST_UNTIL:
+    case AST_WHILE:
+        return exec_while_until(ast, status);
+    case AST_FOR:
+        return exec_for(ast, status);
+    case AST_ASSIGNMENT_WORD:
+        return exec_assign_var(ast, status);
+    case AST_ARGUMENTS:
+        fprintf(stderr, "got AST_ARGUMENTS nodes in fonction exec_ast\n");
+        return 2; // return 2 = soucis dans le code
+    default:
+        fprintf(stderr, "got UNKNOWN nodes in fonction exec_ast\n");
+        return 2;
+    }
+}
