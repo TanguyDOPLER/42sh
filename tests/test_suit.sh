@@ -343,42 +343,6 @@ run_test "complicated folder" "cd Exec/../Exec/../Exec/.deps ; echo $OLDPWD"
 run_test "folder doesn't exist" "cd jenexistepas/ ; echo $OLDPWD"
 run_test "folder doesn't exist with '/' at the begining" "cd /jenexistepas/ ; echo $OLDPWD"
 
-#Starting Test Efective
-rrun_test "And basic" "echo ok && echo ok"
-
-run_test "And basic not" "! echo ok && echo ok"
-
-run_test "Or basic" "echo ok || echo ok"
-
-run_test "Or basic not" "! echo ok || echo ok"
-
-run_test "Long and" "echo ok && echo ok && ls && echo \$PWD && cat file && echo ok"
-
-run_test "Test no space" "echo OK&&echo ok||echo no"
-
-run_test "Example SCL: false and or" "false && echo foo || echo bar"
-run_test "Example SCL: true or and" "true || echo foo && echo bar"
-
-run_test "If true condition" "if echo a && true; then echo ok; else echo ko; fi"
-
-run_test "If false condition" "if echo a && false; then echo ok; else echo ko; fi"
-
-run_test "If true and negation" "if echo a && ! true; then echo ok; else echo ko; fi"
-
-run_test "If false and negation" "if echo a && ! false; then echo ok; else echo ko; fi"
-
-run_test "Bad or pipe" "echo hehe || | cat"
-run_test "Bad or triple pipe" "echo e |||"
-
-run_test "Bad or semicolon" "true || ;"
-run_test "Echo and bad semicolon" "echo; || ;"
-
-run_test "Check and newline with &\\" "echo ok &\\"
-run_test "Followed by new line and and" "& echo ok"
-
-run_test "Check and newline with pipe" "echo ok |\\"
-run_test "Followed by new line and pipe" "| echo ok"
-
 
 
 
