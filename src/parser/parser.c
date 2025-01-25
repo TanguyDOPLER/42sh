@@ -24,6 +24,15 @@ static void error_if_smth(int flag_semicol_newline, enum parser_status *status)
     }
 }
 
+int long_if_command_list(struct token t)
+{
+    return (t.use == TOKEN_WORDS || t.use == TOKEN_IF || t.use == TOKEN_WHILE
+            || t.use == TOKEN_UNTIL || t.use == TOKEN_FOR
+            || t.type == TOKEN_ASSIGNMENT_WORD || t.type == TOKEN_NEGATION
+            || t.use == TOKEN_IONUMBER
+            || (t.type >= TOKEN_REDIR_INPUT && t.type <= TOKEN_REDIR_DOUBLE));
+}
+
 struct ast *compound_list(enum parser_status *status, struct lexer *lexer)
 { // dans cette fonction on vérifie si il y a des ";" ou des "\n" tout le temps
     // meme si la grammair dit autre chose car c'est ici qu'on vérifie les
@@ -54,11 +63,9 @@ struct ast *compound_list(enum parser_status *status, struct lexer *lexer)
         {
             t = lexer_pop(lexer);
         }
-        if (t.use == TOKEN_WORDS || t.use == TOKEN_IF || t.use == TOKEN_WHILE
-            || t.use == TOKEN_UNTIL || t.use == TOKEN_FOR
-            || t.type == TOKEN_ASSIGNMENT_WORD || t.type == TOKEN_NEGATION
-            || t.use == TOKEN_IONUMBER
-            || (t.type >= TOKEN_REDIR_INPUT && t.type <= TOKEN_REDIR_DOUBLE))
+        if (t.use == TOKEN_DO || t.use == TOKEN_DONE)
+            break;
+        if (long_if_command_list(t))
         {
             child = and_or(status, lexer);
             if (*status != PARSER_OK)
@@ -85,7 +92,7 @@ struct ast *compound_list(enum parser_status *status, struct lexer *lexer)
     }
     error_if_smth(flag_semicol_newline, status);
     return compound;
-} // 40
+} // 38
 
 /**
  * list = and_or { ';' and_or } [ ';' ] ;

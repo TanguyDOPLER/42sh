@@ -7,6 +7,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "function.h"
 #include "variable.h"
 
 // renvoie le chemin du dossier dans lequel on se trouve actuellement
@@ -33,6 +34,7 @@ static char *get_current_directory(void)
 void update_res(int res)
 {
     char *value = calloc(8, sizeof(char));
+
     snprintf(value, 8, "%d", res);
     char *name = calloc(2, sizeof(char));
     strcpy(name, "?");
@@ -74,10 +76,12 @@ void shelldon_init(void)
     shelldon.list_args = NULL; // = $@
     shelldon.len_list_args = 0; // taille de $@
     special_var_init(); // initialisation des variables spéciales
+    shelldon.function = NULL;
 }
 
 // free shelldon (shelldon au cimetière *snif*)
 void shelldon_free(void)
 {
     variable_destroy(shelldon.var);
+    function_destroy(shelldon.function);
 }

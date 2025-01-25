@@ -1,0 +1,9 @@
+foo(){
+    for i in 1 2 3
+    do
+        echo $i
+    done
+    echo fini
+}
+
+foo

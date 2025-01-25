@@ -23,7 +23,12 @@ int builtin_dot(char *path)
     while (final_path != NULL)
     {
         if (access(final_path, F_OK) == 0) // on teste si c un fichier valide
-            return exec_for_builtin_dot(final_path); // si oui on execute
+        {
+            int result = exec_for_builtin_dot(final_path); // si oui on execute
+            free(final_path);
+            return result;
+        }
+
         temp_path = strtok(NULL, ":");
         final_path = realloc(final_path,
                              (strlen(temp_path) + strlen(path)) * sizeof(char));
@@ -32,7 +37,8 @@ int builtin_dot(char *path)
         final_path = strcat(final_path, "/");
         final_path = strcat(final_path, path);
     }
-    fprintf(stderr, "dot : No file found");
+    free(final_path);
+    fprintf(stderr, "dot : No file found\n");
     // on est dans le cas où on a rien trouver ici
     return 0;
 }

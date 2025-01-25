@@ -1,0 +1,5 @@
+foo {
+echo patate
+}
+
+foo

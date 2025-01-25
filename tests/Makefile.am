@@ -1,2 +1,3 @@
+EXTRA_DIST=test_suit.sh
 check-local:
-	./test_suit.sh
+	./$(top_srcdir)/tests/test_suit.sh

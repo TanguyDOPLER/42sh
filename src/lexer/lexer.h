@@ -35,4 +35,6 @@ struct token lexer_peek(struct lexer *lexer);
  */
 struct token lexer_pop(struct lexer *lexer);
 
+enum token_type lexer_time_machine(struct lexer *lexer);
+
 #endif /* !LEXER_H */

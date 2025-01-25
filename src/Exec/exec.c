@@ -4,8 +4,9 @@
 
 #include <string.h>
 
-#include "../utils/shelldon.h"
-#include "../utils/variable.h"
+#include "utils/function.h"
+#include "utils/shelldon.h"
+#include "utils/variable.h"
 
 static int exec_list(struct ast *ast, struct exec_status *status)
 {
@@ -13,23 +14,18 @@ static int exec_list(struct ast *ast, struct exec_status *status)
         return 2;
     if (ast == NULL) // on fait rien si on tombe sur null
         return 0;
+
     int result = exec_ast(ast->left, status); // on exec le premier fils
-    if (result == 2 || status->status != EXEC_OK) // gestion erreur
-    {
-        fprintf(stderr, "exec_list, failed on execution of first son\n");
-    }
+
     ast = ast->right; // on passe au deuxième fils (implémentation fils gauche
                       // frr droit)
+    int temp = result;
     while (ast != NULL && ast->type == AST_LIST)
     {
-        result = exec_ast(ast->left, status); // on exec le noeud suivant
-        if (result == 2
-            || status->status
-                != EXEC_OK) // gestion erreur, ici c'est si ca a crash
-        {
-            fprintf(stderr,
-                    "exec_list, failed on execution of on of the sons\n");
-        }
+        temp = exec_ast(ast->left, status); // on exec le noeud suivant
+        if (status->status == EXEC_OK)
+            result = temp;
+
         ast = ast->right; // on passe au frère suivant
     }
     return result; // normalement ici c'est comme return 0;
@@ -76,14 +72,19 @@ static int detect_builtin(int argc, char **argv,
         return builtin_echo(argc - 1, argv); // call fonction builtin
     else if (!strcmp(argv[0], "true")) // cas où on tombe sur le builtin true
         return builtin_true();
-    else if (!strcmp(argv[0], "false")) // cas où on tombe sur le builtin echo
+    else if (!strcmp(argv[0], "false")) // cas où on tombe sur le builtin false
         return builtin_false();
-    else if (!strcmp(argv[0], "exit")) // cas où on tombe sur le builtin echo
+    else if (!strcmp(argv[0], "exit")) // cas où on tombe sur le builtin exit
         return builtin_exit(argv, status);
-    else if (!strcmp(argv[0], "cd")) // cas où on tombe sur le builtin echo
+    else if (!strcmp(argv[0], "cd")) // cas où on tombe sur le builtin cd
         return builtin_cd(argv[1]);
-    else if (!strcmp(argv[0], ".")) // cas où on tombe sur le builtin echo
+    else if (!strcmp(argv[0], ".")) // cas où on tombe sur le builtin dot
         return builtin_dot(argv[1]);
+    else if (!strcmp(argv[0], "unset")) // cas où on tombe sur le builtin unset
+        return builtin_unset(argc, argv);
+    else if (!strcmp(argv[0],
+                     "export")) // cas où on tombe sur le builtin export
+        return builtin_export(argv);
     return -3; // on a pas détecter de builtin, donc on continu sur execvp
 }
 
@@ -146,9 +147,9 @@ static char **create_argument_list(struct ast *ast, struct exec_status *status)
 {
     int number_argument = count_arguments(ast, status);
 
-    char **argv = calloc(
-        number_argument,
-        sizeof(char *)); // initialisation du tableau de char * pour execvp
+    // initialisation du tableau de char * pour execvp
+    char **argv = calloc(number_argument, sizeof(char *));
+
     for (int i = 0; i + 1 < number_argument; i++) // on rempli le tableau
     {
         if (i == 0) // le premier élément trouver est le nom de la commande
@@ -176,8 +177,8 @@ static char **create_argument_list(struct ast *ast, struct exec_status *status)
                 {
                     int index = is_var_index(cp_ast_value);
                     if (index)
-                        argv[i] =
-                            get_var_at_index(i); // pour les variables $1...$n
+                        // pour les variables $1...$n
+                        argv[i] = get_var_at_index(index);
                     else
                     {
                         argv[i] = value_of_variable(
@@ -197,16 +198,17 @@ static char **create_argument_list(struct ast *ast, struct exec_status *status)
         ast = ast->left;
     }
     return argv;
-} // 36
+} // 29
 
 static int exec_simple_command(struct ast *ast, struct exec_status *status)
 {
     if (status->status != EXEC_OK)
         return 2;
+    struct ast *is_func = is_function(ast->value);
+    if (is_func)
+        return exec_ast(is_func, status);
     int resultat = 0;
     char **argv = create_argument_list(ast, status);
-    shelldon.list_args = argv; // change $@
-    shelldon.len_list_args = count_arguments(ast, status) - 1;
     if (argv == NULL || status->status != EXEC_OK)
         return 2;
     resultat = detect_builtin(count_arguments(ast, status), argv,
@@ -214,7 +216,6 @@ static int exec_simple_command(struct ast *ast, struct exec_status *status)
     if (resultat != -3) // cas où on est sur un builtin
     {
         free(argv); // free le tableau completement
-        shelldon.list_args = NULL;
         return resultat; // free result builtins
     }
     int id = fork(); // fork pour execvp
@@ -234,8 +235,6 @@ static int exec_simple_command(struct ast *ast, struct exec_status *status)
         int exit_stat;
         exit_stat = WEXITSTATUS(status); // on récupère le résultat de l'enfant
         free(argv); // free le tableau completement
-        shelldon.list_args = NULL;
-        shelldon.len_list_args = 0;
         if (exit_stat == 127) // on gère en fonction
         {
             fprintf(stderr,
@@ -245,7 +244,7 @@ static int exec_simple_command(struct ast *ast, struct exec_status *status)
         }
         return exit_stat; // a changer ici prcq ca marche pas
     }
-} // 34
+} // 32
 
 static int exec_while_until(struct ast *ast, struct exec_status *status)
 {
@@ -282,8 +281,9 @@ static int exec_for(struct ast *ast, struct exec_status *status)
         for (int i = 0; i < ast->len_values; i++)
         {
             var_name = strdup(ast->value);
-            variable_add(var_name, ast->for_values[i]);
-            exec_ast(ast->left, status);
+            var_value = strdup(ast->for_values[i]);
+            variable_add(var_name, var_value);
+            res = exec_ast(ast->left, status);
         }
     }
     else
@@ -293,7 +293,7 @@ static int exec_for(struct ast *ast, struct exec_status *status)
             var_name = strdup(ast->value);
             var_value = strdup(shelldon.list_args[i]);
             variable_add(var_name, var_value);
-            exec_ast(ast->left, status);
+            res = exec_ast(ast->left, status);
         }
     }
     return res;
@@ -333,8 +333,8 @@ static int exec_pipe(struct ast *ast, struct exec_status *status)
         return 2;
     if (ast == NULL)
         return 0;
-    if (ast->right
-        == NULL) // cas où on a juste une simple commande, on se fait pas chier
+    // cas où on a juste une simple commande, on se fait pas chier
+    if (ast->right == NULL)
         return exec_ast(ast->left, status);
     int save_stdin = 3333; // value to save STDIN
     dup2(STDIN_FILENO, save_stdin); // saving STDIN
@@ -375,7 +375,7 @@ static int exec_pipe(struct ast *ast, struct exec_status *status)
         dup2(save_stdin, STDIN_FILENO);
         return exit_stat2;
     }
-} // 37
+} // 35
 
 // permet d'enregistrer la variable
 int exec_assign_var(struct ast *ast, struct exec_status *status)
@@ -384,15 +384,58 @@ int exec_assign_var(struct ast *ast, struct exec_status *status)
         return 2;
     char *name = strdup(ast->value); // copie le nom de la variable
     if (ast->left->type != AST_SIMPLE_COMMAND)
+    {
+        free(name);
         return 2;
-    char *val = strdup(
-        ast->left->value); // copie la valeur de la variable (qui est dans left)
-    variable_add(name, val); // enregistrement de la variable dans shelldon ;)
+    }
+    char *val = strdup(ast->left->value);
+    int is_var = is_variable(&val);
+    if (is_var == 0) // pas une variable
+    {
+        variable_add(name, val);
+    }
+    else if (is_var == 1) // une variable
+    {
+        int index = is_var_index(val);
+        if (index)
+        {
+            free(val);
+            val = get_var_at_index(index);
+            // pour les variables $1...$n
+            variable_add(name, val);
+        }
+        else
+        {
+            char *v = strdup(value_of_variable(val));
+            // pour les autre variables
+            variable_add(name, v);
+            free(val);
+        }
+    }
+    else // erreur
+    {
+        fprintf(stderr, "%s: bad substitution\n", val);
+        free(val);
+        return 2;
+    }
+    return 0;
+}
+
+// permet d'enregistrer une fonction
+int exec_funcdec(struct ast *ast, struct exec_status *status)
+{
+    if (status->status != EXEC_OK)
+        return 2;
+    char *name = strdup(ast->value); // copie le nom de la fonction
+    function_add(name,
+                 ast->left); // enregistrement de la fonction dans shelldon ;)
     return 0;
 }
 
 int exec_ast(struct ast *ast, struct exec_status *status)
 { // on étudie le type du premier noeud de l'ast
+    if (status->status == EXEC_EXIT)
+        return 0;
     if (ast == NULL)
         return 0;
     if (ast->type >= AST_REDIR_INPUT && ast->type <= AST_REDIR_DOUBLE)
@@ -419,6 +462,8 @@ int exec_ast(struct ast *ast, struct exec_status *status)
         return exec_for(ast, status);
     case AST_ASSIGNMENT_WORD:
         return exec_assign_var(ast, status);
+    case AST_FUNCTION:
+        return exec_funcdec(ast, status);
     case AST_ARGUMENTS:
         fprintf(stderr, "got AST_ARGUMENTS nodes in fonction exec_ast\n");
         return 2; // return 2 = soucis dans le code

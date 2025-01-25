@@ -10,6 +10,12 @@ char *add_slash_at_end(char *str)
 { // add a '/' at the end if there is not
     if (str == NULL)
         return NULL;
+    if (*str == '\0')
+    {
+        str = realloc(str, 2);
+        str[0] = '/';
+        return str;
+    }
     int count = strlen(str);
     if (str[count - 1] != '/')
     {
@@ -180,17 +186,55 @@ int if_for_rule_4(char *directory_operand)
                  || directory_operand[1] == '/'));
 }
 
+int strlen_(char *str)
+{
+    int result = 0;
+    while (str != NULL && *str != '\0')
+    {
+        str++;
+        result++;
+    }
+    return result;
+}
+
+char *strdup_(char *str)
+{
+    if (str == NULL)
+        return NULL;
+    char *result = calloc(strlen_(str) + 1, sizeof(char));
+    int count = 0;
+    while (*str != '\0')
+    {
+        result[count] = *str;
+        str++;
+        count++;
+    }
+    return result;
+}
+
+char *rule_seven(char *curpath, char *pwd_env)
+{
+    char *temp = calloc(strlen_(curpath) + strlen_(pwd_env) + 1, 1);
+    temp = strcpy(temp, pwd_env);
+    temp = strcat(temp, curpath);
+    free(curpath);
+    return temp;
+}
+
 int builtin_cd(char *directory_operand)
 { // faut prendre le SCL pour comprendre les étapes ici
     char *home_env = getenv("HOME");
-    char *pwd_env = add_slash_at_end(strdup(getenv("PWD")));
-    char *curpath = calloc(strlen(directory_operand) + strlen(pwd_env) + 1, 1);
+    char *pwd_env = add_slash_at_end(strdup_(getenv("PWD")));
+    if (pwd_env == NULL)
+        pwd_env = calloc(1, sizeof(char));
     if (directory_operand == NULL)
     {
         if (home_env == NULL) // rule 1: blk on dit erreur
             return 2;
         directory_operand = home_env; // rule 2
     }
+    char *curpath =
+        calloc(strlen_(directory_operand) + strlen_(pwd_env) + 1, 1);
     if (directory_operand[0] == '/') // rule 3
         curpath = strcpy(curpath, directory_operand); // and go rule 7
     else
@@ -216,13 +260,7 @@ int builtin_cd(char *directory_operand)
     }
     if (curpath[0] != '/') // rule 7
     {
-        char *temp = calloc(strlen(curpath) + strlen(pwd_env) + 1, 1);
-        temp = strcpy(temp, pwd_env);
-        temp = strcat(temp, curpath);
-        free(curpath);
-        curpath = temp;
-        // memmove(curpath + strlen(pwd_env), curpath, strlen(curpath) + 1);
-        // curpath = memcpy(curpath,pwd_env, strlen(pwd_env));
+        curpath = rule_seven(curpath, pwd_env);
     }
     curpath = canonic_shape(curpath); // rule 8
     curpath = sheldon_maj(pwd_env, curpath);
@@ -234,4 +272,4 @@ int builtin_cd(char *directory_operand)
     setenv("OLDPWD", getenv("PWD"), 1); // change var OLDPWD
     setenv("PWD", curpath, 1); // change var PWD
     return 0;
-} // 37
+} // 36

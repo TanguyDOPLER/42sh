@@ -176,6 +176,8 @@ static char **for_with_in(enum parser_status *status, struct lexer *lexer,
                           int *values_count)
 {
     struct token token = lexer_peek(lexer);
+    if (token.value)
+        free(token.value);
     if (token.use != TOKEN_IN)
     {
         *status = PARSER_UNEXPECTED_TOKEN;
@@ -212,6 +214,7 @@ static char **for_with_in(enum parser_status *status, struct lexer *lexer,
         }
         return NULL;
     }
+    lexer_pop(lexer);
     return res;
 }
 
@@ -220,6 +223,8 @@ static struct ast *end_of_for(enum parser_status *status, struct lexer *lexer)
     struct token token = lexer_peek(lexer);
     while (token.type == TOKEN_EOL)
         token = lexer_pop(lexer);
+    if (token.value)
+        free(token.value);
     if (token.use != TOKEN_DO)
     {
         fprintf(stderr, "parse_for : Expected token DO but got %d\n",
@@ -229,7 +234,6 @@ static struct ast *end_of_for(enum parser_status *status, struct lexer *lexer)
     }
     token = lexer_pop(lexer);
     struct ast *res = compound_list(status, lexer);
-    token = lexer_peek(lexer);
     if (*status != PARSER_OK)
     {
         ast_free(res);
@@ -237,6 +241,9 @@ static struct ast *end_of_for(enum parser_status *status, struct lexer *lexer)
         *status = PARSER_UNEXPECTED_TOKEN;
         return NULL;
     }
+    token = lexer_peek(lexer);
+    if (token.value)
+        free(token.value);
     if (token.use != TOKEN_DONE)
     {
         ast_free(res);
@@ -254,9 +261,22 @@ static struct ast *end_of_for(enum parser_status *status, struct lexer *lexer)
  *    'for' WORD ( [';'] | [ {'\n'} 'in' { WORD } ( ';' | '\n' ) ] ) {'\n'} 'do'
  * compound_list 'done' ;
  */
+
+void wrong_first_word(enum parser_status *status, struct token token,
+                      struct ast *ast_for)
+{
+    *status = PARSER_UNEXPECTED_TOKEN;
+    fprintf(stderr, "parse_for : Expected token WORD but got %d\n", token.type);
+    free(ast_for);
+    if (token.value)
+        free(token.value);
+}
+
 static struct ast *parse_for(enum parser_status *status, struct lexer *lexer)
 {
     struct token token = lexer_peek(lexer); // 'for'
+    if (token.value)
+        free(token.value);
     if (token.use != TOKEN_FOR) // check si on a bien un token for ici
     {
         *status = PARSER_UNEXPECTED_TOKEN;
@@ -268,10 +288,7 @@ static struct ast *parse_for(enum parser_status *status, struct lexer *lexer)
     token = lexer_pop(lexer); // premier WORD après FOR : nom de variable
     if (token.type != TOKEN_WORDS)
     {
-        *status = PARSER_UNEXPECTED_TOKEN;
-        fprintf(stderr, "parse_for : Expected token WORD but got %d\n",
-                token.type);
-        free(ast_for);
+        wrong_first_word(status, token, ast_for);
         return NULL;
     }
     ast_for->value = token.value;
@@ -294,6 +311,11 @@ static struct ast *parse_for(enum parser_status *status, struct lexer *lexer)
     if (token.use == TOKEN_IN) // 'in'
     {
         ast_for->for_values = for_with_in(status, lexer, &ast_for->len_values);
+        if (*status != PARSER_OK)
+        {
+            ast_free(ast_for);
+            return NULL;
+        }
     }
     token = lexer_peek(lexer);
     ast_for->left = end_of_for(status, lexer);

@@ -14,6 +14,7 @@ static struct ast *element(enum parser_status *status, struct lexer *lexer)
 
     // cas où le prochain token ne correspond à aucune grammaire
     if (t.type != TOKEN_WORDS && t.use != TOKEN_IONUMBER
+        && t.type != TOKEN_ASSIGNMENT_WORD
         && !(t.type >= TOKEN_REDIR_INPUT && t.type <= TOKEN_REDIR_DOUBLE))
     {
         fprintf(stderr,
@@ -123,7 +124,9 @@ struct ast *handle_elements(enum parser_status *status, struct lexer *lexer,
 
     while (t.type == TOKEN_WORDS
            || (t.type >= TOKEN_REDIR_INPUT && t.type <= TOKEN_REDIR_DOUBLE)
-           || t.use == TOKEN_IONUMBER) // condition pour avoir un élément
+           || t.use == TOKEN_IONUMBER
+           || t.type
+               == TOKEN_ASSIGNMENT_WORD) // condition pour avoir un élément
     {
         struct ast *child = element(status, lexer);
         if (*status == PARSER_UNEXPECTED_TOKEN) // erreur

@@ -17,7 +17,7 @@
 #include "utils/shelldon.h"
 #include "utils/variable.h"
 
-struct shelldon shelldon = { NULL };
+struct shelldon shelldon = { NULL, NULL, 0, 0 };
 
 char *file_reader(char *input)
 {
@@ -103,7 +103,7 @@ int exec_42sh(char *buff, int flag_reg_file,
         free(buff);
     if (flag_from_dot == 0)
         shelldon_free(); // struct globale shelldon totalement free
-    if (exec_status.status == EXEC_EXIT)
+    if (exec_status.status == EXEC_EXIT && exec_status.exit_value != -1)
     { // on remet stderr en marche (Cf. builtin_exit.c)
         dup2(STDERR_FILENO, 3333);
         return exec_status.exit_value;
@@ -113,7 +113,8 @@ int exec_42sh(char *buff, int flag_reg_file,
 
 int exec_for_builtin_dot(char *argv)
 { // exec when we met builtin_dot
-    int argc = 1;
+    int argc = 2;
+
     char *buff = NULL;
     int is_regfile = 0;
     if (argc > 1)
@@ -122,6 +123,11 @@ int exec_for_builtin_dot(char *argv)
     }
     if (is_regular_file(argv)) // Gestion ficher en parametre
         buff = file_reader(argv);
+    else
+    {
+        fprintf(stderr, "exec dot : file invalid\n");
+        return 1;
+    }
     if (!buff)
     {
         buff = stdin_reader();
@@ -144,12 +150,18 @@ int main(int argc, char *argv[])
         buff = argv[2];
     }
     if (is_regular_file(argv[1])) // Gestion ficher en parametre
+    {
         buff = file_reader(argv[1]);
+        shelldon.len_list_args = argc - 1;
+        shelldon.list_args = argv + 1;
+    }
     if (!buff && argc >= 2) // Prend le premier args sauf si buffer deja remplie
         buff = argv[1];
     if (!buff)
     {
         buff = stdin_reader();
+        shelldon.len_list_args = argc - 1;
+        shelldon.list_args = argv + 1;
         is_regfile++;
     }
     return exec_42sh(buff, is_regfile, 0);

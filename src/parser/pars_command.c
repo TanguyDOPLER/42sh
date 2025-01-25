@@ -54,10 +54,52 @@ static struct ast *simple_command(enum parser_status *status,
     return simple_com;
 }
 
-/**
- command =
-    simple_command
-    shell_command { redirection };
+/*
+ * funcdec= WORD '(' ')' {'\n'} shell_command ;
+ */
+static struct ast *funcdec(enum parser_status *status, struct lexer *lexer)
+{
+    struct token token = lexer_peek(lexer);
+    if (token.type != TOKEN_WORDS)
+    {
+        fprintf(stderr, "funcdec : expected WORD, got %d\n", token.type);
+        return NULL;
+    }
+    char *name = token.value;
+    token = lexer_pop(lexer);
+    if (token.type != TOKEN_LEFT_PAR)
+    {
+        fprintf(stderr, "funcdec : expected LEFT_PAR, got %d\n", token.type);
+        return NULL;
+    }
+    token = lexer_pop(lexer);
+    if (token.type != TOKEN_RIGHT_PAR)
+    {
+        fprintf(stderr, "funcdec : expected RIGHT_PAR, got %d\n", token.type);
+        return NULL;
+    }
+    token = lexer_pop(lexer);
+    while (token.type == TOKEN_EOL)
+        token = lexer_pop(lexer);
+    struct ast *ast = ast_new(AST_FUNCTION);
+    ast->value = name;
+    ast->left = shell_command(status, lexer);
+    if (*status != PARSER_OK)
+    {
+        free(name);
+        ast_free(ast);
+        fprintf(stderr, "funcdec : error in shell_command");
+        return NULL;
+    }
+    return ast;
+}
+
+/*
+ * command=
+ *	simple_command
+ *	| shell_command { redirection }
+ *	| funcdec { redirection }
+ *   ;
  */
 struct ast *command(enum parser_status *status, struct lexer *lexer)
 {
@@ -65,6 +107,7 @@ struct ast *command(enum parser_status *status, struct lexer *lexer)
         return NULL;
     struct token token = lexer_peek(lexer); // on test si on est sur une simple
                                             // commande ou une shell commande
+                                            // ou une fonction
     if (token.use == TOKEN_IF || token.use == TOKEN_WHILE
         || token.use == TOKEN_UNTIL || token.use == TOKEN_FOR
         || token.use == TOKEN_LEFT_ACC) // cas shell command
@@ -100,5 +143,8 @@ struct ast *command(enum parser_status *status, struct lexer *lexer)
         }
         return shell_com;
     }
+    if (lexer_time_machine(lexer) == TOKEN_LEFT_PAR)
+        return funcdec(status, lexer); // cas function
+
     return simple_command(status, lexer); // cas simple command
 }

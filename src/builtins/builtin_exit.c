@@ -6,7 +6,7 @@
 int builtin_exit(char **argv, struct exec_status *status)
 {
     if (argv[1] == NULL)
-        status->exit_value = 0;
+        status->exit_value = -1;
     else
         status->exit_value = atoi(argv[1]); // set up return number of exit
     status->status = EXEC_EXIT; // set up state of struct

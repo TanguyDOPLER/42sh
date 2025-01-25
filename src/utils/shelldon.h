@@ -6,6 +6,7 @@ struct shelldon
     struct variable *var;
     char **list_args;
     int len_list_args;
+    struct function *function;
 };
 
 // déclaratin de la struct globale

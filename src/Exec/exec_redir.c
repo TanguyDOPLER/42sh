@@ -233,4 +233,4 @@ int exec_redir(struct ast *ast, struct exec_status *status)
     exec_ast(ast, status);
     end_exec_redir(saved_stdin, saved_stdout, saved_stderr, status);
     return 0;
-}
+} // 38

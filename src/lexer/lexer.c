@@ -417,8 +417,11 @@ struct token lexer_peek(struct lexer *lexer)
     return lexer->curr_token;
 }
 
-struct token lexer_time_machine(struct lexer *lexer)
+enum token_type lexer_time_machine(struct lexer *lexer)
 {
+    lexer->prev_pos = lexer->pos;
+    struct token tok = lexer_next_token(lexer);
     lexer->pos = lexer->prev_pos;
-    return lexer_pop(lexer);
+    free(tok.value);
+    return tok.type;
 }

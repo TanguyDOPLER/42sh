@@ -26,5 +26,7 @@ int builtin_exit(char **argv, struct exec_status *status);
 int builtin_cd(char *directory_operand);
 int builtin_dot(char *path);
 int exec_for_builtin_dot(char *argv);
+int builtin_unset(int argc, char **argv);
+int builtin_export(char **argv);
 
 #endif /* !BUILTINS_H */

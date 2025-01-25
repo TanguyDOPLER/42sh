@@ -2,9 +2,11 @@ lib_LIBRARIES = libutils.a
 
 libutils_a_SOURCES =  \
   variable.c \
-  variable_h \
+  variable.h \
   shelldon.c \
-  shelldon.h
+  shelldon.h \
+  function.c \
+  function.h
 
 libutils_a_CPPFLAGS = -I$(top_srcdir)/src
 

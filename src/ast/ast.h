@@ -24,7 +24,8 @@ enum ast_type
     AST_WHILE,
     AST_UNTIL,
     AST_FOR,
-    AST_ASSIGNMENT_WORD
+    AST_ASSIGNMENT_WORD,
+    AST_FUNCTION
 };
 
 struct ast
@@ -42,5 +43,7 @@ struct ast
 struct ast *ast_new(enum ast_type type);
 
 void ast_free(struct ast *ast);
+
+struct ast *ast_copy(struct ast *ast);
 
 #endif /* !AST_H */

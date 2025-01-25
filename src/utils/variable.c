@@ -87,6 +87,40 @@ void variable_destroy(struct variable *var)
     }
 }
 
+// delete la variable dans shelldon.var
+int variable_pop(char *name)
+{
+    struct variable *v = shelldon.var;
+    if (v == NULL) // cas où shelldon.var ne contient encore aucune variable
+        return 0;
+    if (!strcmp(v->name, name)) // cas où c'est la premiere var qu'on veut
+                                // delete
+    {
+        shelldon.var = v->next;
+        free(v->name);
+        free(v->value);
+        free(v);
+        return 0;
+    }
+    // sinon on parcours toutes les variables pour voir si celle qu'on
+    // tente de delete existe bien
+    struct variable *prev = v;
+    v = v->next;
+    while (v != NULL && strcmp(v->name, name))
+    {
+        prev = v;
+        v = v->next;
+    }
+    if (v != NULL) // si elle existe, on change juste sa valeur
+    {
+        prev->next = v->next;
+        free(v->name);
+        free(v->value);
+        free(v);
+    }
+    return 0;
+}
+
 // retourne 0 si value n'est pas une variable
 // 1 si value est une variable
 // 2 s'il y a une erreur
@@ -211,6 +245,11 @@ char *value_of_variable(char *name)
             return var->value;
         var = var->next;
     }
+    char *result = getenv(name); // on va check dans les var d'environnement
+    if (result) // Je sais que c'est normalement gérer de base par le shell
+        // mais c'est pour le builtin export. Si vous voulez + d'explications,
+        // demandez à tanguy
+        return result;
     return "";
 }
 
@@ -219,5 +258,5 @@ char *get_var_at_index(int i)
 {
     if (i >= shelldon.len_list_args)
         return "";
-    return shelldon.list_args[i - 1];
+    return shelldon.list_args[i];
 }
