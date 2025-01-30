@@ -1,3 +1,6 @@
 #include "builtins.h"
 
-int builtin_false(void) { return 1; }
+int builtin_false(void)
+{
+    return 1;
+}

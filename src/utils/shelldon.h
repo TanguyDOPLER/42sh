@@ -1,20 +1,22 @@
 #ifndef SHELLDON_H
 #define SHELLDON_H
 
-struct shelldon {
-  struct variable *var;
-  char **list_args;
-  char *str_args;
-  int len_list_args;
-  char *len_as_str;
-  struct function *function;
-  struct loop_break_continue *loop_struct;
+struct shelldon
+{
+    struct variable *var;
+    char **list_args;
+    char *str_args;
+    int len_list_args;
+    char *len_as_str;
+    struct function *function;
+    struct loop_break_continue *loop_struct;
 };
 
-struct loop_break_continue {
-  int nb_loop;
-  int nb_continue;
-  int nb_break;
+struct loop_break_continue
+{
+    int nb_loop;
+    int nb_continue;
+    int nb_break;
 };
 
 // déclaratin de la struct globale

@@ -6,11 +6,17 @@
 
 #include "../utils/variable.h"
 
-enum exit_status { EXEC_OK, EXEC_CRASHED, EXEC_EXIT };
+enum exit_status
+{
+    EXEC_OK,
+    EXEC_CRASHED,
+    EXEC_EXIT
+};
 
-struct exec_status {
-  enum exit_status status;
-  int exit_value;
+struct exec_status
+{
+    enum exit_status status;
+    int exit_value;
 };
 
 int builtin_true(void);
