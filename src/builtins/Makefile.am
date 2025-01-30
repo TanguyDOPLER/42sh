@@ -9,6 +9,8 @@ libbuiltins_a_SOURCES =  \
   builtin_dot.c \
   builtin_unset.c \
   builtin_export.c \
+  builtin_continue.c \
+  builtin_break.c \
   builtins.h 
 
 libbuiltins_a_CPPFLAGS = -I$(top_srcdir)/src

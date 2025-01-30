@@ -5,12 +5,11 @@
 
 #include "token.h"
 
-struct lexer
-{
-    const char *input; // L'input de 'exe'
-    size_t pos; // positio=n dans la string input
-    struct token curr_token;
-    size_t prev_pos;
+struct lexer {
+  const char *input; // L'input de 'exe'
+  size_t pos;        // positio=n dans la string input
+  struct token curr_token;
+  size_t prev_pos;
 };
 
 struct lexer *lexer_init(const char *input);

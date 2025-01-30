@@ -3,11 +3,10 @@
 
 #include "ast/ast.h"
 
-struct function
-{
-    char *name;
-    struct ast *ast;
-    struct function *next;
+struct function {
+  char *name;
+  struct ast *ast;
+  struct function *next;
 };
 
 int function_add(char *name, struct ast *ast);

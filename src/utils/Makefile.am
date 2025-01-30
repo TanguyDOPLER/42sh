@@ -5,8 +5,8 @@ libutils_a_SOURCES =  \
   variable.h \
   shelldon.c \
   shelldon.h \
-  function.c \
-  function.h
+  fonction.c \
+  fonction.h
 
 libutils_a_CPPFLAGS = -I$(top_srcdir)/src
 

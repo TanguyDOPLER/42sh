@@ -6,10 +6,9 @@
 #include "../ast/ast.h"
 #include "../lexer/lexer.h"
 
-enum parser_status
-{
-    PARSER_OK,
-    PARSER_UNEXPECTED_TOKEN,
+enum parser_status {
+  PARSER_OK,
+  PARSER_UNEXPECTED_TOKEN,
 };
 
 /**

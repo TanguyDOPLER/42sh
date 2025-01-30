@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # Couleurs
 RED='\033[31m'
@@ -27,7 +27,7 @@ TESTS_SUCCESS=0
 
 # Fonction pour afficher une bannière
 print_header() {
-    echo -e "${CYAN}${BOLD}=== $1 ===${RESET}"
+    echo "${CYAN}${BOLD}=== $1 ===${RESET}"
 }
 
 # Fonction pour exécuter un test
@@ -35,33 +35,33 @@ run_test() {
     local description="$1"
     local command="$2"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN+1))
 
     # Exécution dans /bin/bash
-    echo -e "$command" | bash --posix >"$BASH_OUT" 2>"$BASH_ERR"
+    echo "$command" | bash --posix >"$BASH_OUT" 2>"$BASH_ERR"
     local bash_ret=$?
 
     # Exécution dans 42sh
-    echo -e "$command" | $TEST_SHELL >"$SH_OUT" 2>"$SH_ERR"
+    echo "$command" | $VALGRIND $TEST_SHELL >"$SH_OUT" 2>"$SH_ERR"
     local sh_ret=$?
 
     # Comparaison des résultats
     if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ]; then
-        echo -e "${GREEN}[OK]${RESET} $description" 
-        ((TESTS_SUCCESS++))
+        echo "${GREEN}[OK]${RESET} $description" 
+        TESTS_SUCCESS=$((TESTS_SUCCESS+1))
     else
-        echo -e "${RED}[FAIL]${RESET} $description"
-        echo -e "${YELLOW}Command:${RESET} $command"
-        echo -e "${BLUE}--- Expected stdout ---${RESET}"
+        echo "${RED}[FAIL]${RESET} $description"
+        echo "${YELLOW}Command:${RESET} $command"
+        echo "${BLUE}--- Expected stdout ---${RESET}"
         cat -e "$BASH_OUT"
-        echo -e "${BLUE}--- Actual stdout ---${RESET}"
+        echo "${BLUE}--- Actual stdout ---${RESET}"
         cat -e "$SH_OUT"
-        echo -e "${BLUE}--- Expected stderr ---${RESET}"
+        echo "${BLUE}--- Expected stderr ---${RESET}"
         cat "$BASH_ERR"
-        echo -e "${BLUE}--- Actual stderr ---${RESET}"
+        echo "${BLUE}--- Actual stderr ---${RESET}"
         cat "$SH_ERR"
-        echo -e "${BLUE}Expected return code:${RESET} $bash_ret"
-        echo -e "${BLUE}Actual return code:${RESET} $sh_ret"
+        echo "${BLUE}Expected return code:${RESET} $bash_ret"
+        echo "${BLUE}Actual return code:${RESET} $sh_ret"
         echo
     fi
 }
@@ -70,34 +70,34 @@ run_test2() {
     local description="$1"
     local command="$2"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN+1))
 
     # Exécution dans /bin/bash
-    echo -e "$command" | bash --posix >"$BASH_OUT" 2>"$BASH_ERR"
+    echo "$command" | bash --posix >"$BASH_OUT" 2>"$BASH_ERR"
     local bash_ret=$?
     cat -e files.txt > $BASH_RED
     # Exécution dans 42sh
-    echo -e "$command" | $TEST_SHELL >"$SH_OUT" 2>"$SH_ERR"
+    echo "$command" | $TEST_SHELL >"$SH_OUT" 2>"$SH_ERR"
     local sh_ret=$?
     cat -e files.txt > $SH_RED
 
     # Comparaison des résultats
     if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ] && diff -q "$BASH_RED" "$SH_RED" > /dev/null;  then
-        echo -e "${GREEN}[OK]${RESET} $description"
-        ((TESTS_SUCCESS++))
+        echo "${GREEN}[OK]${RESET} $description"
+        TESTS_SUCCESS=$((TESTS_SUCCESS+1))
     else
-        echo -e "${RED}[FAIL]${RESET} $description"
-        echo -e "${YELLOW}Command:${RESET} $command"
-        echo -e "${BLUE}--- Expected stdout ---${RESET}"
+        echo "${RED}[FAIL]${RESET} $description"
+        echo "${YELLOW}Command:${RESET} $command"
+        echo "${BLUE}--- Expected stdout ---${RESET}"
         cat "$BASH_OUT"
-        echo -e "${BLUE}--- Actual stdout ---${RESET}"
+        echo "${BLUE}--- Actual stdout ---${RESET}"
         cat "$SH_OUT"
-        echo -e "${BLUE}--- Expected stderr ---${RESET}"
+        echo "${BLUE}--- Expected stderr ---${RESET}"
         cat "$BASH_ERR"
-        echo -e "${BLUE}--- Actual stderr ---${RESET}"
+        echo "${BLUE}--- Actual stderr ---${RESET}"
         cat "$SH_ERR"
-        echo -e "${BLUE}Expected return code:${RESET} $bash_ret"
-        echo -e "${BLUE}Actual return code:${RESET} $sh_ret"
+        echo "${BLUE}Expected return code:${RESET} $bash_ret"
+        echo "${BLUE}Actual return code:${RESET} $sh_ret"
         echo
     fi
 }
@@ -106,7 +106,7 @@ run_test_file() {
     local description="$1"
     local command="$2"
 
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN+1))
 
     # Exécution dans /bin/bash
     bash --posix $command >"$BASH_OUT" 2>"$BASH_ERR"
@@ -117,21 +117,21 @@ run_test_file() {
 
     # Comparaison des résultats
     if diff -q "$BASH_OUT" "$SH_OUT" >/dev/null && (([ -n "$BASH_ERR" ] && [ -n "$SH_ERR" ]) || ([ -z "$BASH_ERR" ] && [ -z "$SH_ERR" ])) && [ "$bash_ret" -eq "$sh_ret" ]; then
-        echo -e "${GREEN}[OK]${RESET} $description"
-        ((TESTS_SUCCESS++))
+        echo "${GREEN}[OK]${RESET} $description"
+        TESTS_SUCCESS=$((TESTS_SUCCESS+1))
     else
-        echo -e "${RED}[FAIL]${RESET} $description"
-        echo -e "${YELLOW}Command:${RESET} $command"
-        echo -e "${BLUE}--- Expected stdout ---${RESET}"
+        echo "${RED}[FAIL]${RESET} $description"
+        echo "${YELLOW}Command:${RESET} $command"
+        echo "${BLUE}--- Expected stdout ---${RESET}"
         cat -e "$BASH_OUT"
-        echo -e "${BLUE}--- Actual stdout ---${RESET}"
+        echo "${BLUE}--- Actual stdout ---${RESET}"
         cat -e "$SH_OUT"
-        echo -e "${BLUE}--- Expected stderr ---${RESET}"
+        echo "${BLUE}--- Expected stderr ---${RESET}"
         cat "$BASH_ERR"
-        echo -e "${BLUE}--- Actual stderr ---${RESET}"
+        echo "${BLUE}--- Actual stderr ---${RESET}"
         cat "$SH_ERR"
-        echo -e "${BLUE}Expected return code:${RESET} $bash_ret"
-        echo -e "${BLUE}Actual return code:${RESET} $sh_ret"
+        echo "${BLUE}Expected return code:${RESET} $bash_ret"
+        echo "${BLUE}Actual return code:${RESET} $sh_ret"
         echo
     fi
 }
@@ -901,6 +901,32 @@ run_test_file "function4" "function4.sh"
 run_test_file "function5" "function5.sh"
 run_test_file "function6" "function6.sh"
 run_test_file "function7" "function7.sh"
+
+run_test_file "loop5" "loop5.sh"
+run_test_file "loop6" "loop6.sh"
+run_test_file "loop7" "loop7.sh"
+run_test_file "loop8" "loop8.sh"
+run_test_file "loop9" "loop9.sh"
+run_test_file "loop10" "loop10.sh"
+run_test_file "loop11" "loop11.sh"
+run_test_file "loop12" "loop12.sh"
+run_test_file "loop13" "loop13.sh"
+
+# Tests thilde expension
+run_test "simple thilde" "echo ~"
+run_test "simple thilde with slash" "echo ~/"
+run_test "echo thilde with space" "echo ~/42sh: ~azec"
+run_test "simple thilde with username" "echo ~azec"
+run_test "simple thilde with fake username but one letter" "echo ~a"
+run_test "simple thilde fake username" "echo ~existepas"
+run_test "simple thilde slash folder name" "echo ~/test"
+run_test "simple thilde folder name" "echo ~test"
+run_test "thilde fater double point" "echo :~"
+run_test "simple thilde with slash" "echo :~/"
+run_test "simple thilde with username" "echo :~azec"
+run_test "simple thilde fake username" "echo :~existepas"
+run_test "simple thilde slash folder name" "echo :~/test"
+run_test "simple thilde folder name" "echo :~test"
 
 
 PERCENT=$(($TESTS_SUCCESS * 100 / $TESTS_RUN));

@@ -6,17 +6,11 @@
 
 #include "../utils/variable.h"
 
-enum exit_status
-{
-    EXEC_OK,
-    EXEC_CRASHED,
-    EXEC_EXIT
-};
+enum exit_status { EXEC_OK, EXEC_CRASHED, EXEC_EXIT };
 
-struct exec_status
-{
-    enum exit_status status;
-    int exit_value;
+struct exec_status {
+  enum exit_status status;
+  int exit_value;
 };
 
 int builtin_true(void);
@@ -28,5 +22,7 @@ int builtin_dot(char *path);
 int exec_for_builtin_dot(char *argv);
 int builtin_unset(int argc, char **argv);
 int builtin_export(char **argv);
+int builtin_continue(int argc, char **argv, struct exec_status *status);
+int builtin_break(int argc, char **argv, struct exec_status *status);
 
 #endif /* !BUILTINS_H */
