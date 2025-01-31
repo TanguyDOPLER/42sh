@@ -1,5 +1,5 @@
-#ifndef FUNCTION_H
-#define FUNCTION_H
+#ifndef FONCTION_H
+#define FONCTION_H
 
 #include "ast/ast.h"
 
@@ -14,4 +14,4 @@ int function_add(char *name, struct ast *ast);
 void function_destroy(struct function *function);
 struct ast *is_function(char *name);
 
-#endif /* ! FUNCTION_H */
+#endif /* ! FONCTION_H */
