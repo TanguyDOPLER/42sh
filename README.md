@@ -255,8 +255,8 @@ The project follows strict rules from the course:
 
 ## Authors
 
-- **Your Name**: [@your-github-username](https://github.com/your-github-username)
-- Teammate(s): ...
+- **Your Name**: [@TanguyDOPLER](https://github.com/TanguyDOPLER)
+- Teammate(s): Dylan.de-araujo, Maxime.Durival
 
 ## Acknowledgments
 
